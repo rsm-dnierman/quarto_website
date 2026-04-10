@@ -1,0 +1,15 @@
+---
+title: "David Nierman"
+image: "files/profile_pic.jpeg"
+about:
+  template: jolla
+  links:
+    - icon: envelope
+      href: mailto:davidnierman93@gmail.com
+    - icon: linkedin
+      href: https://www.linkedin.com/in/davidnierman/
+    - icon: github
+      href: https://github.com/yourprofile
+    - href: resume.qmd
+      text: Resume
+---

@@ -1,0 +1,79 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "David Nierman",
+    "section": "",
+    "text": "• Marketing Analytics Professional | MSBA Student • Data-driven analyst specializing in business intelligence and marketing technology • Python | SQL | Tableau | Power BI | R"
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site"
+  },
+  {
+    "objectID": "resume.html",
+    "href": "resume.html",
+    "title": "My Resume",
+    "section": "",
+    "text": "Download PDF file."
+  },
+  {
+    "objectID": "index.html#welcome",
+    "href": "index.html#welcome",
+    "title": "David Nierman",
+    "section": "",
+    "text": "I’m a Marketing Analytics professional passionate about data-driven insights and strategic decision-making. With expertise in MSBA and marketing analytics, I transform complex data into actionable business intelligence.\n\n\n\nProfessional Insights: Deep-dives into marketing analytics, data visualization, and strategic analysis\nProject Portfolio: Real-world case studies showcasing data analytics implementations\nTechnical Skills: Python, SQL, Tableau, Power BI, statistical analysis, and business intelligence\nThought Leadership: Articles on marketing technology, data strategy, and industry trends\n\n\n\n\nI’m open to collaborations, speaking engagements, and exploring new opportunities in marketing analytics. Feel free to reach out via email or connect on LinkedIn!\n\n“Data is the new oil, but insights are the new gold.”"
+  },
+  {
+    "objectID": "index.html#current",
+    "href": "index.html#current",
+    "title": "David Nierman",
+    "section": "",
+    "text": "• Marketing Analytics Professional | MSBA Student • Data-driven analyst specializing in business intelligence and marketing technology • Python | SQL | Tableau | Power BI | R"
+  },
+  {
+    "objectID": "index.html#work-experience",
+    "href": "index.html#work-experience",
+    "title": "David Nierman",
+    "section": "Work Experience",
+    "text": "Work Experience\n• [Current Company] | [Year] - Present • [Previous Company] | [Year] - [Year] • [Previous Company] | [Year] - [Year]"
+  },
+  {
+    "objectID": "index.html#education",
+    "href": "index.html#education",
+    "title": "David Nierman",
+    "section": "Education",
+    "text": "Education\n• Master of Science in Business Analytics (MSBA) | [University] [Year] • Bachelor of Science | [University] [Year] • Certifications | [Relevant Certs] [Year]"
+  },
+  {
+    "objectID": "index.html#additional-links",
+    "href": "index.html#additional-links",
+    "title": "David Nierman",
+    "section": "Additional Links",
+    "text": "Additional Links\n• Resume | Portfolio | Blog | GitHub"
+  },
+  {
+    "objectID": "projects.html",
+    "href": "projects.html",
+    "title": "My Projects",
+    "section": "",
+    "text": "Analysis of Cars\n\n\n\n\n\n\nYour Name\n\n\nApr 3, 2026\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "projects/project1/index.html",
+    "href": "projects/project1/index.html",
+    "title": "Analysis of Cars",
+    "section": "",
+    "text": "Let’s investigate the relationship between fuel efficiency (mpg) and engine displacement (disp) from the mtcars dataset. Those variables have a correlation of r cor(mtcars$mpg, mtcars$disp) |&gt; format(digits=2).\n\n\nHere is a plot:\n\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Generate synthetic data\nnp.random.seed(42)\nmpg = np.random.uniform(10, 35, 50)\ndisp = 400 - (mpg * 8) + np.random.normal(0, 30, 50)  # negative correlation like mtcars\n\n# Plot\nplt.figure(figsize=(8, 6))\nplt.scatter(mpg, disp, color=\"dodgerblue\", s=40)\nplt.xlabel(\"mpg\")\nplt.ylabel(\"disp\")\nplt.title(\"MPG vs Displacement (Synthetic)\")\nplt.tight_layout()\nplt.show()"
+  },
+  {
+    "objectID": "projects/project1/index.html#sub-header",
+    "href": "projects/project1/index.html#sub-header",
+    "title": "Analysis of Cars",
+    "section": "",
+    "text": "Here is a plot:\n\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Generate synthetic data\nnp.random.seed(42)\nmpg = np.random.uniform(10, 35, 50)\ndisp = 400 - (mpg * 8) + np.random.normal(0, 30, 50)  # negative correlation like mtcars\n\n# Plot\nplt.figure(figsize=(8, 6))\nplt.scatter(mpg, disp, color=\"dodgerblue\", s=40)\nplt.xlabel(\"mpg\")\nplt.ylabel(\"disp\")\nplt.title(\"MPG vs Displacement (Synthetic)\")\nplt.tight_layout()\nplt.show()"
+  }
+]

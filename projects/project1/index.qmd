@@ -1,0 +1,32 @@
+---
+title: "Analysis of Cars"
+author: Your Name
+date: today
+---
+
+# Header
+
+Let's investigate the relationship between fuel efficiency (`mpg`) and engine displacement (`disp`) from the `mtcars` dataset. Those variables have a correlation of `r cor(mtcars$mpg, mtcars$disp) |> format(digits=2)`.
+
+## Sub-Header
+
+Here is a plot:
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Generate synthetic data
+np.random.seed(42)
+mpg = np.random.uniform(10, 35, 50)
+disp = 400 - (mpg * 8) + np.random.normal(0, 30, 50)  # negative correlation like mtcars
+
+# Plot
+plt.figure(figsize=(8, 6))
+plt.scatter(mpg, disp, color="dodgerblue", s=40)
+plt.xlabel("mpg")
+plt.ylabel("disp")
+plt.title("MPG vs Displacement (Synthetic)")
+plt.tight_layout()
+plt.show()
+```
