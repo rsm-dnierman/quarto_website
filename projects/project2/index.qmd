@@ -386,7 +386,7 @@ pi_B = 0.18
 true_theta = pi_A - pi_B
 
 # Sample sizes the reader can explore
-sample_sizes = [1,5,10, 25, 50, 100, 250, 500, 1000]
+sample_sizes = [1, 5, 10, 25, 50, 100, 250, 500, 1000]
 
 # Number of simulated estimates per sample size
 n_sim = 1000
@@ -407,6 +407,12 @@ all_theta = np.concatenate(list(theta_results.values()))
 x_min = all_theta.min()
 x_max = all_theta.max()
 
+# Add a little padding so endpoint values like +1 are not lost on the boundary
+pad = 0.05
+bin_start = x_min - pad
+bin_end = x_max + pad
+bin_size = (bin_end - bin_start) / 30
+
 # Build frames
 frames = []
 for n in sample_sizes:
@@ -414,7 +420,7 @@ for n in sample_sizes:
         x=theta_results[n],
         nbinsx=30,
         name=f"n = {n}",
-        xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 30)
+        xbins=dict(start=bin_start, end=bin_end, size=bin_size)
     )
 
     frames.append(
@@ -435,12 +441,15 @@ fig = go.Figure(
         go.Histogram(
             x=theta_results[initial_n],
             nbinsx=30,
-            xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 30)
+            xbins=dict(start=bin_start, end=bin_end, size=bin_size)
         )
     ],
     layout=go.Layout(
         title=f"Sampling Distribution of theta_hat (n = {initial_n})",
-        xaxis=dict(title="Estimated difference (theta_hat)", range=[x_min, x_max]),
+        xaxis=dict(
+            title="Estimated difference (theta_hat)",
+            range=[bin_start, bin_end]
+        ),
         yaxis=dict(title="Frequency"),
         shapes=[
             dict(
@@ -479,7 +488,6 @@ fig = go.Figure(
 )
 
 fig.show()
-
 ```
 
 ::: {.callout-note}
@@ -511,28 +519,187 @@ Because we are averaging more observations, the estimator $\hat{\theta} = \bar{X
 
 ## Hypothesis Testing
 
-::: {.callout-note}
-- Now that we have seen the CLT in action — that the sampling distribution of $\hat\theta$ is approximately Normal for large samples — we can use this result to perform a formal hypothesis test.
+Now that we have seen the CLT in action — that the sampling distribution of $\hat\theta$ is approximately Normal for large samples — we can use this result to perform a formal hypothesis test.
 
-- Write a paragraph explaining what a hypothesis test is to the reader. We set up a null hypothesis $H_0: \theta = 0$ (i.e., the two CTAs produce the same sign-up rate) and an alternative hypothesis $H_1: \theta \neq 0$. The goal is to assess whether the data provide enough evidence to reject $H_0$.
+::: {.callout-important}
+A hypothesis test is a method for using sample data to evaluate whether a claim about a population is likely to be true.
+:::
 
-- Then explain why we standardize $\hat\theta$ to form a test statistic. We compute:
+ In this case, we start with a null hypothesis $H_0: \theta = 0$, which means that the two CTAs produce the same sign-up rate and there is no real difference between them. The alternative hypothesis $H_1: \theta \neq 0$ represents the idea that there is a difference between the two CTAs. The goal of the test is to use our sample data to determine whether there is enough evidence to reject the null hypothesis and conclude that a meaningful difference exists.
 
+We standardize $\hat{\theta}$ to understand how unusual our estimate is under the null hypothesis. Since $H_0$ assumes the true difference is 0, we subtract 0 and divide by the standard error to measure how many standard deviations our estimate is from 0:
 $$
 z = \frac{\hat\theta - 0}{SE(\hat\theta)}
 $$
 
-- Walk the reader through the logic of this standardization step by step:
+By the Central Limit Theorem, $\hat{\theta}$ is approximately normally distributed for large samples, and under $H_0$ it is centered at 0. Dividing by the standard error puts it on a standardized scale, so under the null we have $z \dot\sim N(0,1)$.
 
-    1. By the CLT, we know that $\hat\theta$ is approximately Normal for large samples. Under $H_0$, the mean of that distribution is 0.
-    2. When we divide a Normal random variable by its standard deviation, we get a standard Normal $N(0,1)$. So under $H_0$, $z \;\dot\sim\; N(0,1)$.
-    3. This means we know the distribution of our test statistic under the null, which is exactly what we need to compute a p-value.
+Once we know this distribution, we can compute a p-value, which tells us how likely it is to observe a result this extreme if the null hypothesis were true.
 
-- Explain to the reader why this is sometimes called a "t-test" even though the test statistic follows an approximate Normal distribution, not a t-distribution. The classical t-test arises when the data are drawn from a Normal distribution and the variance must be estimated --- the ratio then follows an exact t-distribution. In our setting the data are Bernoulli (not Normal), so there is no exact t-distribution result. The CLT gives us approximate Normality, and since we estimate the SE from the data, what we are really doing is closer to a z-test. In practice, for large samples the t-distribution and the standard Normal are nearly identical, so the distinction has little practical consequence --- but it is important to understand why.
+
+```{python}
+#| code-fold: true
+#| code-summary: "Show slider code"
+
+import numpy as np
+import plotly.graph_objects as go
+from scipy.stats import norm
+
+# Grid for standard normal curve
+x = np.linspace(-4, 4, 1000)
+y = norm.pdf(x)
+
+# z-values the slider will move through
+z_values = np.round(np.arange(0.0, 3.1, 0.1), 1)
+
+frames = []
+
+for z in z_values:
+    right_mask = x >= z
+    left_mask = x <= -z
+    p_value = 2 * (1 - norm.cdf(z))
+
+    frames.append(
+        go.Frame(
+            name=str(z),
+            data=[
+                go.Scatter(
+                    x=x, y=y,
+                    mode="lines",
+                    name="Standard Normal",
+                    line=dict(color="black")
+                ),
+                go.Scatter(
+                    x=x[right_mask], y=y[right_mask],
+                    mode="lines",
+                    fill="tozeroy",
+                    name="Right tail",
+                    line=dict(color="red")
+                ),
+                go.Scatter(
+                    x=x[left_mask], y=y[left_mask],
+                    mode="lines",
+                    fill="tozeroy",
+                    name="Left tail",
+                    line=dict(color="red")
+                )
+            ],
+            layout=go.Layout(
+                title=f"Standard Normal Distribution with z = {z:.1f} and p-value = {p_value:.4f}",
+                shapes=[
+                    dict(
+                        type="line",
+                        x0=z, x1=z, y0=0, y1=norm.pdf(z),
+                        line=dict(color="blue", dash="dash", width=2)
+                    ),
+                    dict(
+                        type="line",
+                        x0=-z, x1=-z, y0=0, y1=norm.pdf(-z),
+                        line=dict(color="blue", dash="dash", width=2)
+                    )
+                ]
+            )
+        )
+    )
+
+# Initial value
+z0 = z_values[0]
+right_mask = x >= z0
+left_mask = x <= -z0
+p0 = 2 * (1 - norm.cdf(z0))
+
+fig = go.Figure(
+    data=[
+        go.Scatter(
+            x=x, y=y,
+            mode="lines",
+            name="Standard Normal",
+            line=dict(color="black")
+        ),
+        go.Scatter(
+            x=x[right_mask], y=y[right_mask],
+            mode="lines",
+            fill="tozeroy",
+            name="Right tail",
+            line=dict(color="red")
+        ),
+        go.Scatter(
+            x=x[left_mask], y=y[left_mask],
+            mode="lines",
+            fill="tozeroy",
+            name="Left tail",
+            line=dict(color="red")
+        )
+    ],
+    layout=go.Layout(
+        title=f"Standard Normal Distribution with z = {z0:.1f} and p-value = {p0:.4f}",
+        xaxis=dict(title="z", range=[-4, 4]),
+        yaxis=dict(title="Density"),
+        shapes=[
+            dict(
+                type="line",
+                x0=z0, x1=z0, y0=0, y1=norm.pdf(z0),
+                line=dict(color="blue", dash="dash", width=2)
+            ),
+            dict(
+                type="line",
+                x0=-z0, x1=-z0, y0=0, y1=norm.pdf(-z0),
+                line=dict(color="blue", dash="dash", width=2)
+            )
+        ],
+        sliders=[
+            {
+                "currentvalue": {"prefix": "z-value: "},
+                "pad": {"t": 40},
+                "steps": [
+                    {
+                        "args": [
+                            [str(z)],
+                            {"frame": {"duration": 0, "redraw": True},
+                             "mode": "immediate",
+                             "transition": {"duration": 0}}
+                        ],
+                        "label": str(z),
+                        "method": "animate"
+                    }
+                    for z in z_values
+                ]
+            }
+        ]
+    ),
+    frames=frames
+)
+
+fig.show()
+```
+
+The plot above shows the standard normal distribution under the null hypothesis. The dashed vertical lines represent the value of the test statistic $z$ and its negative. The shaded areas in the tails represent the probability of observing a value at least this extreme if the null hypothesis were true. This shaded area is the p-value.
+
+As the value of $z$ moves farther away from 0, the shaded area gets smaller. This means the p-value decreases, which provides stronger evidence against the null hypothesis. In other words, large values of $|z|$ correspond to results that would be unlikely to occur by chance if $H_0$ were true.
+
+In practice, we compare the p-value to a chosen significance level (often denoted $\alpha$) to decide whether to reject the null hypothesis. Common thresholds are:
+
+| Significance Level ($\alpha$) | Confidence Level | Approx. Critical $|z|$ | Interpretation |
+|------------------------------|------------------|------------------------|----------------|
+| 0.10                         | 90%              | 1.64                   | Weak evidence against $H_0$ |
+| 0.05                         | 95%              | 1.96                   | Moderate evidence against $H_0$ |
+| 0.01                         | 99%              | 2.58                   | Strong evidence against $H_0$ |
+
+If the p-value is less than $\alpha$, we reject the null hypothesis. Otherwise, we do not reject it.
+
+Another way to think about this is through confidence intervals. For example, a 95% confidence interval corresponds to a significance level of $\alpha = 0.05$. If the interval does not include 0, that is equivalent to rejecting the null hypothesis at the 5% level.
+
+This is sometimes referred to as a “t-test,” but that is not exactly what we are doing here. The classical t-test comes from a setting where the data are normally distributed and the variance is unknown, so we estimate it from the data. In that case, the resulting test statistic follows an exact t-distribution.
+
+In our setting, however, the data are Bernoulli (0 or 1), not normally distributed, so there is no exact t-distribution result. Instead, we rely on the Central Limit Theorem, which tells us that our estimator is approximately normally distributed when the sample size is large. Because of this, our test statistic is better thought of as following an approximate standard normal distribution.
+
+In practice, this distinction does not matter much for large samples, since the t-distribution and the standard normal distribution are very similar. However, it is still important to understand where each result comes from and why we are using this approximation.
+
+
+### LEFT OFF HERE!!!!
 
 - Using your simulated data, compute the test statistic and its associated p-value (using the standard Normal distribution as the reference). Interpret the result for the reader.
 :::
-
 
 ## The T-Test as a Regression
 
@@ -550,6 +717,7 @@ $$
     1. $\beta_0$ is the expected value of $Y_i$ when $D_i = 0$ --- i.e., the mean of the B group, which estimates $\pi_B$.
     2. $\beta_0 + \beta_1$ is the expected value of $Y_i$ when $D_i = 1$ --- i.e., the mean of the A group, which estimates $\pi_A$.
     3. Therefore $\beta_1 = \pi_A - \pi_B = \theta$, and the OLS estimate $\hat\beta_1$ is numerically identical to $\hat\theta = \bar{X}_A - \bar{X}_B$.
+
 
 - Fit this regression using your simulated data. Report the coefficient estimate $\hat\beta_1$, its standard error, its t-statistic, and its p-value. Compare these to the values you computed in the previous section using the two-sample approach --- they should match (up to a small difference in how the standard error is computed; standard OLS assumes a single pooled variance, while the two-sample formula we used assumes separate variances for each group).
 
