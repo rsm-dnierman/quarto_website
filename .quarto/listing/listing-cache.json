@@ -1,8 +1,8 @@
 {
   "listingMap": {
     "projects.qmd": [
-      "projects",
-      "./projects"
+      "projects/project1",
+      "projects/project2"
     ]
   }
 }

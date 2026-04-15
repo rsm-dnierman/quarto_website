@@ -1,6 +1,9 @@
 ---
 title: "My Projects"
 listing:
-  contents: projects
-  type: grid
+   contents:
+    - projects/project1
+    - projects/project2
+   type: grid
+   sort: false
 ---
