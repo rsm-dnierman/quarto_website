@@ -694,50 +694,255 @@ This is sometimes referred to as a “t-test,” but that is not exactly what we
 In our setting, however, the data are Bernoulli (0 or 1), not normally distributed, so there is no exact t-distribution result. Instead, we rely on the Central Limit Theorem, which tells us that our estimator is approximately normally distributed when the sample size is large. Because of this, our test statistic is better thought of as following an approximate standard normal distribution.
 
 In practice, this distinction does not matter much for large samples, since the t-distribution and the standard normal distribution are very similar. However, it is still important to understand where each result comes from and why we are using this approximation.
-
-
-### LEFT OFF HERE!!!!
-
-- Using your simulated data, compute the test statistic and its associated p-value (using the standard Normal distribution as the reference). Interpret the result for the reader.
 :::
+
+Use the slider below to change the degrees of freedom and see how the t-distribution compares to the standard normal distribution.
+
+```{python}
+#| code-fold: true
+#| code-summary: "Show slider code"
+
+import numpy as np
+import plotly.graph_objects as go
+from scipy.stats import norm, t
+
+# x-grid
+x = np.linspace(-5, 5, 1000)
+
+# standard normal density
+normal_y = norm.pdf(x)
+
+# degrees of freedom to show
+df_values = [1, 2, 3, 5, 10, 20, 30, 50, 100]
+
+frames = []
+
+for df in df_values:
+    t_y = t.pdf(x, df)
+
+    frames.append(
+        go.Frame(
+            name=str(df),
+            data=[
+                go.Scatter(
+                    x=x,
+                    y=normal_y,
+                    mode="lines",
+                    name="Standard Normal",
+                    line=dict(color="black", width=3)
+                ),
+                go.Scatter(
+                    x=x,
+                    y=t_y,
+                    mode="lines",
+                    name=f"t-distribution (df = {df})",
+                    line=dict(color="purple", width=3, dash="dash")
+                )
+            ],
+            layout=go.Layout(
+                title=f"t-Distribution vs. Standard Normal (df = {df})"
+            )
+        )
+    )
+
+# initial df
+df0 = df_values[0]
+t0_y = t.pdf(x, df0)
+
+fig = go.Figure(
+    data=[
+        go.Scatter(
+            x=x,
+            y=normal_y,
+            mode="lines",
+            name="Standard Normal",
+            line=dict(color="black", width=3)
+        ),
+        go.Scatter(
+            x=x,
+            y=t0_y,
+            mode="lines",
+            name=f"t-distribution (df = {df0})",
+            line=dict(color="purple", width=3, dash="dash")
+        )
+    ],
+    layout=go.Layout(
+        title=f"t-Distribution vs. Standard Normal (df = {df0})",
+        xaxis=dict(title="Value", range=[-5, 5]),
+        yaxis=dict(title="Density"),
+        sliders=[
+            {
+                "currentvalue": {"prefix": "Degrees of freedom: "},
+                "pad": {"t": 40},
+                "steps": [
+                    {
+                        "args": [
+                            [str(df)],
+                            {
+                                "frame": {"duration": 0, "redraw": True},
+                                "mode": "immediate",
+                                "transition": {"duration": 0}
+                            }
+                        ],
+                        "label": str(df),
+                        "method": "animate"
+                    }
+                    for df in df_values
+                ]
+            }
+        ]
+    ),
+    frames=frames
+)
+
+fig.show()
+```
+
+::: {.callout-note}
+When the degrees of freedom are small, the t-distribution has heavier tails, but as the degrees of freedom increase, it becomes almost identical to the normal distribution.
+:::
+
+Using our simulated data, we compute the test statistic by standardizing our estimate of $\hat{\theta}$ and then calculate the corresponding p-value using the standard normal distribution.
+
+```{python}
+from scipy.stats import norm
+
+# Estimate
+theta_hat = (
+    data.filter(pl.col("group") == "A")["outcome"].mean()
+    - data.filter(pl.col("group") == "B")["outcome"].mean()
+)
+
+# Test statistic
+z_stat = theta_hat / analytic_se
+
+# Two-sided p-value
+p_value = 2 * (1 - norm.cdf(abs(z_stat)))
+
+round(float(theta_hat), 3), round(float(z_stat), 3), round(float(p_value), 3)
+```
+
+The estimated difference in sign-up rates is `{python} round(float(theta_hat), 3)`, with a test statistic of `{python} round(float(z_stat), 2)` and a p-value of `{python} round(float(p_value), 3)`. This means that, assuming the null hypothesis is true, there is about `{python} round(100 * float(p_value), 3)`% chance of observing a result this extreme purely due to random variation.
+
+Since the p-value is below the 0.05 significance level, we reject the null hypothesis. This suggests that there is statistically significant evidence of a difference in sign-up rates between the two CTAs, with CTA A performing better than CTA B.
 
 ## The T-Test as a Regression
 
 ::: {.callout-note}
-- It turns out that the two-sample test we just ran is mathematically equivalent to a simple linear regression. Understanding this connection is useful because it means the same machinery --- and the same software --- that you use for regression can also perform hypothesis tests, and it generalizes naturally to more complex experimental designs.
+- It turns out that the two-sample test we just ran is mathematically equivalent to a simple linear regression.
 
-- Explain the setup to the reader. Stack the CTA A and CTA B data into a single dataset with two columns: an outcome $Y_i$ (1 if the visitor signed up, 0 otherwise) and an indicator $D_i$ (1 if the visitor saw CTA A, 0 if they saw CTA B). Then fit the regression:
+- Understanding this connection is useful because it means the same machinery --- and the same software --- that you use for regression can also perform hypothesis tests, and it generalizes naturally to more complex experimental designs.
+:::
 
+It turns out that the two-sample test we just ran can also be written as a simple linear regression. This is useful because it shows that hypothesis testing and regression are closely connected. In practice, this means we can use the same regression tools and software to answer the same question, and that framework can easily be extended to more complicated settings later on.
+
+To set this up, we combine the CTA A and CTA B observations into one dataset. For each visitor, we define an outcome variable $Y_i$ that equals 1 if the visitor signed up and 0 otherwise. We also define an indicator variable $D_i$ that equals 1 if the visitor saw CTA A and 0 if the visitor saw CTA B. We then fit the regression
 $$
 Y_i = \beta_0 + \beta_1 D_i + \varepsilon_i
 $$
+which lets us estimate the difference in average sign-up rates between the two groups.
 
-- Walk through the interpretation of the coefficients:
+We can interpret the coefficients in this regression in a straightforward way. First, $\beta_0$ represents the expected value of $Y_i$ when $D_i = 0$. Since $D_i = 0$ corresponds to CTA B, this is just the average sign-up rate for group B, which estimates $\pi_B$.
 
-    1. $\beta_0$ is the expected value of $Y_i$ when $D_i = 0$ --- i.e., the mean of the B group, which estimates $\pi_B$.
-    2. $\beta_0 + \beta_1$ is the expected value of $Y_i$ when $D_i = 1$ --- i.e., the mean of the A group, which estimates $\pi_A$.
-    3. Therefore $\beta_1 = \pi_A - \pi_B = \theta$, and the OLS estimate $\hat\beta_1$ is numerically identical to $\hat\theta = \bar{X}_A - \bar{X}_B$.
+Next, when $D_i = 1$ (CTA A), the expected value of $Y_i$ becomes $\beta_0 + \beta_1$. This is the average sign-up rate for group A, which estimates $\pi_A$.
 
+Putting this together, $\beta_1$ captures the difference between the two groups. Specifically, $\beta_1 = \pi_A - \pi_B = \theta$. This means the estimated coefficient $\hat{\beta}_1$ is exactly the same as the difference in sample means, $\hat{\theta} = \bar{X}_A - \bar{X}_B$.
 
-- Fit this regression using your simulated data. Report the coefficient estimate $\hat\beta_1$, its standard error, its t-statistic, and its p-value. Compare these to the values you computed in the previous section using the two-sample approach --- they should match (up to a small difference in how the standard error is computed; standard OLS assumes a single pooled variance, while the two-sample formula we used assumes separate variances for each group).
+We can now fit this regression using our simulated data and compare the results to the two-sample test we ran earlier.
 
-- Explain to the reader why this equivalence matters: the regression framework makes it easy to add controls, interactions, or additional treatment arms, all while producing the same inference in the simple case.
-:::
+```{python}
+
+import statsmodels.api as sm
+
+# Create indicator variable D (1 for A, 0 for B)
+df_reg = data.with_columns(
+    (pl.col("group") == "A").cast(int).alias("D")
+)
+
+# Convert to pandas for statsmodels
+df_reg_pd = df_reg.to_pandas()
+
+# Define variables
+Y = df_reg_pd["outcome"]
+X = sm.add_constant(df_reg_pd["D"])  # adds intercept
+
+# Fit regression
+model = sm.OLS(Y, X).fit()
+
+model.summary()
+```
+
+From the regression results, the coefficient on $D_i$ is 0.038. This means that showing CTA A increases the sign-up rate by about 3.8 percentage points compared to CTA B. This matches exactly with the difference in sample means we computed earlier.
+
+The standard error for this estimate is approximately 0.018, which leads to a t-statistic of 2.14 and a p-value of 0.033. Since the p-value is below the 0.05 significance level, we reject the null hypothesis and conclude that there is statistically significant evidence of a difference in sign-up rates between the two CTAs.
+
+These results are very consistent with the two-sample test we ran earlier. The estimated effect, test statistic, and p-value are nearly identical. Any small differences come from how the standard error is calculated: the regression uses a pooled variance, while the two-sample approach allows for separate variances. In this case, the difference is minimal.
+
+Overall, both approaches lead to the same conclusion: CTA A performs better than CTA B.
 
 
 ## The Problem with Peeking
 
-::: {.callout-note}
-- Your boss is impatient. Rather than waiting until all 1,000 visitors have been assigned to each group, she wants to run the hypothesis test after every 100 visitors per group — peeking at the results after 100, 200, 300, ..., up to 1,000 visitors per group (10 tests in total). If any of those tests comes back significant at the $\alpha = 0.05$ level, she wants to declare a winner and stop the experiment early.
 
-- Explain to the reader why this is problematic under classical frequentist statistics. The key issue is that a single test at $\alpha = 0.05$ has a 5% chance of a false positive (rejecting $H_0$ when it is actually true). But when you conduct multiple tests on accumulating data, each peek is another opportunity to get a false positive. The overall probability of at least one false rejection across all the peeks is much higher than 5%.
+Your boss is impatient. Rather than waiting until all 1,000 visitors have been assigned to each group, she wants to run the hypothesis test after every 100 visitors per group — peeking at the results after 100, 200, 300, ..., up to 1,000 visitors per group (10 tests in total). If any of those tests comes back significant at the $\alpha = 0.05$ level, she wants to declare a winner and stop the experiment early.
 
-- Demonstrate this with a simulation. The idea is as follows:
+This is problematic because the 5% false positive rate only applies to a *single* test. Each time we peek at the data, we are effectively running another test. This creates multiple opportunities to incorrectly reject the null hypothesis. As a result, the overall probability of making at least one false positive across all the peeks becomes much larger than 5%.
 
-    1. Set up a world where the null hypothesis is true: $\pi_A = \pi_B = 0.20$ (i.e., $\theta = 0$, there is no difference between the CTAs).
-    2. Simulate a single experiment: draw 1,000 observations for group A and 1,000 for group B. After every 100 observations per group (at $n = 100, 200, \ldots, 1000$), compute the z-statistic and p-value. Record whether any of the 10 p-values falls below 0.05.
-    3. Repeat step 2 a total of 10,000 times to simulate 10,000 experiments.
-    4. Compute the fraction of those 10,000 experiments in which at least one peek produced a significant result. This is the empirical false positive rate under peeking.
+We can demonstrate this with a simulation.
 
-- Compare this to the nominal 5% false positive rate of a single test. Report the result and explain to the reader why peeking inflates the Type I error rate and what this means in practice for running A/B tests.
+```{python}
+import numpy as np
+from scipy.stats import norm
+
+np.random.seed(42)
+
+# True probabilities under the null
+pi_A = 0.20
+pi_B = 0.20
+
+n_total = 1000
+peek_points = np.arange(100, 1001, 100)
+n_sim = 10000
+
+false_positive_count = 0
+
+for _ in range(n_sim):
+    A = np.random.binomial(1, pi_A, n_total)
+    B = np.random.binomial(1, pi_B, n_total)
+
+    significant = False
+
+    for n in peek_points:
+        A_n = A[:n]
+        B_n = B[:n]
+
+        theta_hat = A_n.mean() - B_n.mean()
+
+        # standard error (pooled approximation)
+        se = np.sqrt(
+            (A_n.mean() * (1 - A_n.mean()) / n) +
+            (B_n.mean() * (1 - B_n.mean()) / n)
+        )
+
+        z = theta_hat / se if se > 0 else 0
+        p_value = 2 * (1 - norm.cdf(abs(z)))
+
+        if p_value < 0.05:
+            significant = True
+            break
+
+    if significant:
+        false_positive_count += 1
+
+false_positive_rate = false_positive_count / n_sim
+false_positive_rate
+```
+
+The simulation shows that the empirical false positive rate under peeking is 0.1864, or about 18.6%. This is much higher than the nominal 5% false positive rate of a single hypothesis test.
+
+This happens because each peek at the data creates another opportunity to reject the null hypothesis by chance alone. Even if there is truly no difference between the two CTAs, repeatedly testing the data makes it much more likely that at least one of those tests will produce a statistically significant result.
+
+
+::: {.callout-warning}
+In practice, this means that peeking can lead us to declare a winner too early and make decisions based on noise rather than a real effect. For A/B testing, this is why it is important to either commit to a fixed sample size in advance or use methods that are specifically designed for sequential testing.
 :::
