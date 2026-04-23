@@ -1,948 +1,301 @@
 ---
-title: A/B Testing a Call to Action
-subtitle: "Simulating Key Ideas from Classical Frequentist Statistics"
-author: David Nierman
+title: "Replication of Angrist and Lavy (1999)"
+subtitle: "Using Maimonides' Rule to Estimate the Effect of Class Size on Scholastic Achievement"
+author: "David Nierman"
 date: today
+format: html
+execute:
+  warning: false
+  message: false
 ---
 
+```{python}
+#| echo: false
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.formula.api as smf
+from IPython.display import display, HTML
+
+# ── Load 4th-grade data ───────────────────────────────────────────────────────
+df_raw = pd.read_stata("final4.dta")
+
+# Correct score encoding: occasionally stored as actual + 100
+df_raw["avgverb"] = df_raw["avgverb"].where(df_raw["avgverb"] <= 100,
+                                             df_raw["avgverb"] - 100)
+df_raw["avgmath"] = df_raw["avgmath"].where(df_raw["avgmath"] <= 100,
+                                             df_raw["avgmath"] - 100)
+
+# Set to missing where no test takers were recorded
+df_raw.loc[df_raw["verbsize"] == 0, "avgverb"]  = np.nan
+df_raw.loc[df_raw["verbsize"] == 0, "passverb"] = np.nan
+df_raw.loc[df_raw["mathsize"] == 0, "avgmath"]  = np.nan
+df_raw.loc[df_raw["mathsize"] == 0, "passmath"] = np.nan
+
+# Maimonides' rule: predicted class size from enrollment (fsc)
+df_raw["fsc"] = df_raw["c_size"] / (np.floor((df_raw["c_size"] - 1) / 40) + 1)
+
+# ── Apply sample restrictions (matching paper and do-file) ────────────────────
+df = df_raw.loc[
+    (df_raw["classize"] > 1) &
+    (df_raw["classize"] < 45) &
+    (df_raw["c_size"]   > 5) &
+    (df_raw["c_leom"]  == 1) &
+    (df_raw["c_pik"]    < 3)
+].copy()
+
+# Table III additional restriction: keep only classes with observed verbal scores
+df3 = df.dropna(subset=["avgverb"]).copy()
+
+# Helper: format coefficient and SE from a fitted model
+def fmt(model, var):
+    c = model.params[var]
+    s = model.bse[var]
+    p = model.pvalues[var]
+    stars = "***" if p < 0.01 else ("**" if p < 0.05 else ("*" if p < 0.1 else ""))
+    return f"{c:.3f}{stars}", f"({s:.3f})"
+```
 
 ## Introduction
 
+In 1999, Joshua Angrist and Victor Lavy published a landmark study asking a deceptively simple question: does putting students in smaller classes actually help them learn? The challenge is that this is genuinely hard to answer with observational data. Schools cannot randomly assign students to class sizes, and the factors that determine class size — school wealth, district resources, demographics — are also correlated with student outcomes. A simple comparison of students in large versus small classes will confound the effect of class size with all of these background differences.
 
-This is a walkthrough on leveraging a randomized controlled trial to apply classical frequentist statistics.
+Angrist and Lavy's breakthrough was recognizing that Israeli school policy created a natural experiment. Israeli public schools are required to follow **Maimonides' rule**: no class may have more than 40 students. When a grade's enrollment reaches 41, the school must split into two classes; at 81, three; at 121, four; and so on. This generates sharp, predictable **discontinuities** in class size at enrollment thresholds of 40, 80, 120, and 160. The key insight is that students just below and just above each threshold are otherwise similar — they attend the same school and face the same local conditions — but end up in very differently sized classes purely because of where enrollment happened to fall.
 
-For this walkthrough, we will use a website’s newsletter as an example. The landing page includes a section where visitors can sign up to receive the newsletter. The goal is to increase the number of sign-ups by testing two different calls to action (CTAs).
+The predicted class size implied by Maimonides' rule is:
 
-> **CTA A:** "Sign up for our FREE newsletter here!"
+$$\text{fsc} = \frac{\text{enrollment}}{\lfloor (\text{enrollment} - 1)/40 \rfloor + 1}$$
 
-> **CTA B:** "If you find this interesting, sign up for our newsletter here!"
+This nonlinear function of enrollment creates **quasi-experimental variation** in class size. By comparing outcomes near the thresholds — and by controlling for smooth enrollment effects — the authors can attribute differences in achievement specifically to the discontinuous shifts in class size, rather than to correlated socioeconomic factors.
 
-To evaluate which CTA performs better, we will run an A/B test. In an A/B test, visitors are randomly assigned to see one of the two CTAs. We then compare the sign-up rates between the two groups to determine which message is more effective at driving conversions.
+This post replicates three core pieces of the paper using Israel's 1991 fourth-grade data: (1) Figure 1 Panel B, showing how actual class sizes track Maimonides' rule; (2) the naive OLS estimates from Table II, which serve as a confounded baseline; and (3) the reduced-form RDD estimates from Table III Panel A, which use the rule as an instrument.
 
+## Main Analysis
 
-## The A/B Test as a Statistical Problem
+### Figure 1 Panel B: Class Size Tracks Maimonides' Rule
 
-In this section, we will connect the A/B test to a more formal statistical framework.
-
-Each visitor either signs up or does not, so we will model each outcome as a draw from a Bernoulli distribution with parameter:
-
-> $\boldsymbol{\pi}$ - probability of signing up.
-
-Because the CTA a visitor sees may influence their decision, we allow this probability to differ between groups:
-
-> $\boldsymbol{\pi_A}$ Visitors who see CTA A sign-up probability.
-
-> $\boldsymbol{\pi_B}$ Visitors who see CTA B sign-up probability. *In either case, each outcome is binary: sign up (1) or not (0).*
-
-The main quantity we care about is the difference between the two sign-up probabilities:
-
-> $\boldsymbol{\theta = \pi_A - \pi_B}$
-
-*This captures how much better one CTA performs relative to the other.*
-
-To estimate this, we use the difference in sample means:
-
-> $\boldsymbol{\hat{\theta}} = \bar{X}_A - \bar{X}_B$
-
-Since each observation is either 0 or 1, the sample mean is the proportion of visitors who signed up.
-
-> $\boldsymbol{\bar{X}_A} = \hat{\pi}_A$ and $\boldsymbol{\bar{X}_B} = \hat{\pi}_B$
-
-## Simulating Data
-
-In the real world, we would not know the true values of $\pi_A$ and $\pi_B$ ahead of time; we would only estimate them after running an experiment. For this exercise, we will set these values ourselves so we can study how our estimator behaves when we know the truth.
-
-*Suppose $\pi_A = 0.22$ and $\pi_B = 0.18$, so the true difference is $\theta = 0.04$.*
+The first step is to verify that Maimonides' rule actually shapes class sizes in practice. The figure below replicates Figure 1 Panel B from the paper. Each circle is the average actual class size for all schools with a given enrollment count; the red line is the size predicted by Maimonides' rule.
 
 ```{python}
-import numpy as np
-import polars as pl
-
-
-# Set seed for reproducibility
-np.random.seed(42)
-
-# True probabilities
-pi_A = 0.22
-pi_B = 0.18
-
-# Number of samples per group
-n = 1000
-
-# Simulate Bernoulli draws
-A = np.random.binomial(1, pi_A, n)
-B = np.random.binomial(1, pi_B, n)
-
-# Create Polars DataFrame
-data = pl.DataFrame({
-    "group": ["A"] * n + ["B"] * n,
-    "outcome": np.concatenate([A, B])
-})
-
-data.group_by("group").agg(
-    pl.col("outcome").mean().alias("pi_hat"),
-    pl.col("outcome").sum().alias("sign_ups"),
-    pl.len().alias("n")
-)
-```
-
-## The Law of Large Numbers
-
-Samples are a strong way to represent the population.
-
-::: {.callout-important}
-
-The Law of Large Numbers (LLN) tells us that as the sample size increases, the sample mean gets closer to the true population mean.
-
-:::
-
-Because of LLN, we can be confident that our estimator $\hat{\theta} = \bar{X}_A - \bar{X}_B$ will be close to the true $\theta$ as long as our sample is large enough.
-
-
-
-```{python}
-# Set seed
-np.random.seed(42) # 42 - also the answer to the Ultimate Question of Life, the Universe, and Everything
-
-# True probabilities
-pi_A = 0.22
-pi_B = 0.18
-theta = pi_A - pi_B
-
-# Different sample sizes
-sample_sizes = (
-    list(range(1, 30, 2)) +
-    list(range(30, 200, 10)) +
-    [500, 1000, 2000, 3000]
-)
-
-results = []
-
-for n in sample_sizes:
-    # Simulate draws
-    A = np.random.binomial(1, pi_A, n)
-    B = np.random.binomial(1, pi_B, n)
-
-    # Element-wise differences
-    diff = A - B
-
-    # Estimate (mean of differences)
-    theta_hat = diff.mean()
-
-    results.append({
-        "n": n,
-        "theta_hat": theta_hat
-    })
-```
-```{python}
-#| code-fold: true
-#| code-summary: "Show plotting code"
-
-import matplotlib.pyplot as plt
-
-# Convert to Polars DataFrame
-df = pl.DataFrame(results)
-
-# Plot
-plt.figure(figsize=(8, 5))
-plt.plot(df["n"], df["theta_hat"], marker="o")
-plt.axhline(theta, linestyle="--", label="True difference (θ = 0.04)")
-
-plt.xlabel("Sample size (n)")
-plt.ylabel("Estimated difference (theta_hat)")
-plt.title("Law of Large Numbers: Estimates Improve with Sample Size")
-plt.xscale("log")
-plt.legend()
-
-plt.show()
-```
-
-
-::: {.callout-note}
-
-This plot shows that when the sample size is small, the estimated difference is pretty noisy and can move around a lot just due to random variation. As more observations are included, the estimate starts to stabilize and get closer to the true difference of 0.04 (since $\pi_A = 0.22$ and $\pi_B = 0.18$, so $0.22 - 0.18$).
-:::
-
-
-## Bootstrap Standard Errors
-
-Now that we have some confidence in our estimator, the next question is how precise it actually is. Instead of only reporting a single estimate of $\theta$, we also want to include a confidence interval to show the uncertainty around that estimate.
-
-Bootstrapping is a way to understand how much our estimate might vary without needing a complicated formula. Instead of relying on theory, we use the data we already have and repeatedly resample from it (with replacement) to create many new “fake” datasets. For each of these, we calculate the statistic we care about. By looking at how those values change across resamples, we can get a sense of how much variability there is and use that to estimate the standard error.
-
-::: {.callout-tip}
-**Fun fact:** The bootstrap method was introduced by statistician Bradley Efron in 1979 at Stanford University. The name comes from the phrase “pulling yourself up by your bootstraps,” since the method uses the data itself to learn about its own variability—no external assumptions needed.
-:::
-
-First, we take one bootstrap resample from each group. This means we sample 1,000 observations **with replacement** from the CTA A group and 1,000 observations **with replacement** from the CTA B group. Using those resampled datasets, we compute one bootstrapped estimate of the difference in sign-up rates, $\hat{\theta}^*$.
-
-```{python}
-def bootstrap_theta(data, n=1000):
-    A_obs = data.filter(pl.col("group") == "A")["outcome"].to_numpy()
-    B_obs = data.filter(pl.col("group") == "B")["outcome"].to_numpy()
-
-    A_star = np.random.choice(A_obs, size=n, replace=True)
-    B_star = np.random.choice(B_obs, size=n, replace=True)
-
-    return A_star.mean() - B_star.mean()
-```
-```{python}
-#| code-fold: true
-#| code-summary: "Example call"
-theta_hat_star = bootstrap_theta(data)
-theta_hat_star
-```
-
-Next, we repeat the resampling process 1,000 times. Each time, we call our bootstrap function to generate a new estimate of $\hat{\theta}^*$. This gives us a distribution of bootstrapped estimates.
-
-```{python}
-n_boot = 1_000
-
-boot_theta = np.array([bootstrap_theta(data) for _ in range(n_boot)])
-
-boot_theta[:10] # preview of first 10
-```
-
-Once we have the 1,000 bootstrapped estimates, we can measure how much they vary. The standard deviation of these values is the bootstrapped standard error, which tells us how much uncertainty there is in our estimator
-
-```{python}
-boot_se = boot_theta.std(ddof=1)
-boot_se
-```
-
-Finally, we compare the bootstrapped standard error to the analytical standard error. The analytical version comes from the standard formula for the difference in means of two independent Bernoulli samples.
-
-$$
-SE(\hat\theta) = \sqrt{\frac{\hat\pi_A(1 - \hat\pi_A)}{n_A} + \frac{\hat\pi_B(1 - \hat\pi_B)}{n_B}}
-$$
-
-where $\hat\pi_A$ and $\hat\pi_B$ are the sample proportions and $n_A$ and $n_B$ are the sample sizes.
-
-```{python}
-
-A_obs = data.filter(pl.col("group") == "A")["outcome"].to_numpy()
-B_obs = data.filter(pl.col("group") == "B")["outcome"].to_numpy()
-
-n = len(A_obs)
-
-pi_hat_A = A_obs.mean()
-pi_hat_B = B_obs.mean()
-
-analytic_se = np.sqrt(
-    (pi_hat_A * (1 - pi_hat_A) / n) +
-    (pi_hat_B * (1 - pi_hat_B) / n)
-)
-
-comparison = pl.DataFrame({
-    "method": ["Bootstrap SE", "Analytical SE"],
-    "value": [boot_se, analytic_se]
-})
-
-comparison
-```
-
-::: {.callout-note}
-The bootstrapped standard error and analytical standard error are extremely close to each other, with only a very small difference between them. This suggests that the bootstrap method is doing a good job estimating the variability of our estimator, even without relying on the analytical formula.
-:::
-
-### Confidence Interval
-To construct a 95% confidence interval, we use the fact that our estimator is approximately normally distributed (we will explain why this is a reasonable assumption using the Central Limit Theorem in the next section). The value 1.96 comes from the standard normal distribution and represents the cutoff needed to capture the middle 95% of possible values. Using this, we take our estimate of $\theta$ and add and subtract $1.96 \times$ the standard error to get a range of plausible values for the true difference.
-
-```{python}
-theta_hat = (
-    data.filter(pl.col("group") == "A")["outcome"].mean()
-    - data.filter(pl.col("group") == "B")["outcome"].mean()
-)
-
-ci_lower = theta_hat - 1.96 * boot_se
-ci_upper = theta_hat + 1.96 * boot_se
-
-(ci_lower, ci_upper)
-```
-
-```{python}
-#| code-fold: true
-#| code-summary: "Show plotting code"
-import matplotlib.pyplot as plt
-
-# Plot bootstrap distribution
-plt.figure(figsize=(8, 5))
-plt.hist(boot_theta, bins=30)
-
-# Add vertical lines
-plt.axvline(theta_hat, linestyle="-", linewidth=2, color="black", label="Estimate (θ̂)")
-plt.axvline(ci_lower, linestyle="--", linewidth=2, color="red", label="Lower 95% CI")
-plt.axvline(ci_upper, linestyle=":", linewidth=2, color="blue", label="Upper 95% CI")
-
-plt.xlabel("Bootstrapped estimates of theta")
-plt.ylabel("Frequency")
-plt.title("Bootstrap Distribution with 95% Confidence Interval")
-plt.legend()
-
-plt.show()
-```
-
-
-## The Central Limit Theorem
-
-::: {.callout-important}
-
-The Central Limit Theorem (CLT) tells us that as our sample size gets larger, the distribution of our estimator starts to look approximately normal, even if the original data is not normally distributed.
-
-:::
-
-*In other words, regardless of the shape of the underlying population, the sample mean (and therefore the difference in sample means) will tend to follow a normal distribution when we have enough observations.*
-
-
-
-- Then demonstrate this visually by creating four histograms, one for each of the following sample sizes: $n \in \{25, 50, 100, 500\}$.
-
-- For each sample size $n$:
-
-    1. Draw $n$ observations from the CTA A distribution and $n$ observations from the CTA B distribution.
-    2. Compute $\hat\theta = \bar{X}_A - \bar{X}_B$.
-    3. Repeat steps 1--2 a total of 1,000 times to produce 1,000 values of $\hat\theta$.
-    4. Plot a histogram of those 1,000 values.
-
-- Arrange the four histograms so they can be compared easily (e.g., in a 2x2 grid with consistent x-axis scales).
-
-```{python}
-#| code-fold: true
-#| code-summary: "Show histogram code"
-
-def simulate_theta(pi_A, pi_B, n):
-    A = np.random.binomial(1, pi_A, n)
-    B = np.random.binomial(1, pi_B, n)
-
-    return A.mean() - B.mean()
-
-# Sample sizes to compare
-sample_sizes = [25, 50, 100, 500]
-
-# Number of repeated simulations
-n_sim = 1000
-
-# Store results
-theta_results = {}
-
-for n in sample_sizes:
-    theta_hats = np.array([
-        simulate_theta(pi_A, pi_B, n) for _ in range(n_sim)
-    ])
-
-    theta_results[n] = theta_hats
-
-
-```
-
-
-```{python}
-#| code-fold: true
-#| code-summary: "Show plotting code"
-
-all_theta = np.concatenate(list(theta_results.values()))
-x_min = all_theta.min()
-x_max = all_theta.max()
-
-# Create 2x2 grid of histograms
-fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True, sharey=True)
-axes = axes.flatten()
-
-for ax, n in zip(axes, sample_sizes):
-    ax.hist(theta_results[n], bins=30, edgecolor="black")
-    ax.axvline(0.04, linestyle="--", color="red", linewidth=2, label="True difference = 0.04")
-    ax.set_title(f"n = {n}")
-    ax.set_xlabel("Estimated difference (theta_hat)")
-    ax.set_ylabel("Frequency")
-    ax.set_xlim(x_min, x_max)
-
-# Add one legend for the full figure
-handles, labels = axes[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="upper right")
-
-plt.suptitle("Sampling Distribution of theta_hat at Different Sample Sizes", y=1.02)
+#| echo: false
+#| label: fig-figure1
+#| fig-cap: "Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles show average actual class size by initial enrollment count; the red step function shows the class size predicted by Maimonides' rule. Dashed vertical lines mark discontinuity thresholds at enrollments of 40, 80, 120, and 160."
+
+# For Figure 1 use the broader sample without the classize < 45 filter
+# so the full staircase pattern is visible
+df_fig = df_raw.loc[
+    (df_raw["c_size"]  > 5) &
+    (df_raw["c_leom"] == 1) &
+    (df_raw["c_pik"]   < 3)
+].copy()
+
+avg_cs = (df_fig.groupby("c_size")["classize"]
+               .mean()
+               .reset_index()
+               .rename(columns={"c_size": "enrollment", "classize": "avg_classize"}))
+
+enroll_range = np.arange(1, 201)
+maid = enroll_range / (np.floor((enroll_range - 1) / 40) + 1)
+
+fig, ax = plt.subplots(figsize=(9, 5))
+
+ax.scatter(avg_cs["enrollment"], avg_cs["avg_classize"],
+           s=22, color="navy", alpha=0.65, zorder=3,
+           label="Average actual class size")
+ax.plot(enroll_range, maid, color="firebrick", linewidth=1.8,
+        label="Maimonides' rule (predicted class size)")
+
+for t in [40, 80, 120, 160]:
+    ax.axvline(x=t, color="gray", linestyle="--", linewidth=0.8, alpha=0.55)
+
+ax.set_xlabel("Initial enrollment count", fontsize=12)
+ax.set_ylabel("Class size", fontsize=12)
+ax.set_title("Figure 1 Panel B — 4th Grade, Israel 1991",
+             fontsize=13, fontweight="bold")
+ax.legend(fontsize=10, framealpha=0.9)
+ax.set_xlim(0, 200)
+ax.set_ylim(0, 50)
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 plt.tight_layout()
 plt.show()
 ```
-When the sample size is small, the distribution of $\hat{\theta}$ looks pretty rough and can be a bit uneven due to randomness. As we increase the sample size, the distribution starts to smooth out and becomes more centered around the true value of 0.04. Eventually, it begins to take on a clear bell-shaped form. This is the Central Limit Theorem in action—larger samples lead to a more normal-looking distribution.
 
-::: {.callout-tio}
-Move the slider below to change the sample size and see how the distribution of $\hat{\theta}$ evolves as we include more observations.
-:::
+The figure shows the classic staircase pattern. Predicted class size drops sharply whenever enrollment crosses a multiple of 40, then climbs again as enrollment rises within the next segment. Actual class sizes track this pattern closely. The alignment between circles and the red line confirms that Maimonides' rule is a strong predictor of actual class size — the foundation for using it as an instrument.
+
+### Naive OLS: Table II (Columns 7 and 10)
+
+Before exploiting the rule, Angrist and Lavy document what a naive regression produces. These regressions simply regress average test scores on actual class size, with no controls and no attempt to address endogeneity. The results are shown below.
 
 ```{python}
-#| code-fold: true
-#| code-summary: "Show slider code"
+#| echo: false
 
-import numpy as np
-import plotly.graph_objects as go
+# ── Table II (4th grade): naive OLS ───────────────────────────────────────────
+df_v = df.dropna(subset=["avgverb"])
+df_m = df.dropna(subset=["avgmath"])
 
-# Set seed for reproducibility
-np.random.seed(42)
+m2_7  = smf.ols("avgverb ~ classize", data=df_v).fit(
+    cov_type="cluster", cov_kwds={"groups": df_v["schlcode"]})
+m2_10 = smf.ols("avgmath ~ classize", data=df_m).fit(
+    cov_type="cluster", cov_kwds={"groups": df_m["schlcode"]})
 
-# True probabilities
-pi_A = 0.22
-pi_B = 0.18
-true_theta = pi_A - pi_B
+c7, s7   = fmt(m2_7,  "classize")
+c10, s10 = fmt(m2_10, "classize")
 
-# Sample sizes the reader can explore
-sample_sizes = [1, 5, 10, 25, 50, 100, 250, 500, 1000]
+tbl2 = pd.DataFrame({
+    "": ["Coefficient on class size", "Std. error", "Observations", "R²"],
+    "Col 7 — Reading": [c7,  s7,  int(m2_7.nobs),  f"{m2_7.rsquared:.3f}"],
+    "Col 10 — Math":   [c10, s10, int(m2_10.nobs), f"{m2_10.rsquared:.3f}"],
+})
 
-# Number of simulated estimates per sample size
-n_sim = 1000
+display(HTML(
+    "<b>Table II (4th grade): Naive OLS — Actual Class Size on Test Scores</b><br>" +
+    tbl2.to_html(index=False, border=0,
+                 classes="table table-sm",
+                 justify="left") +
+    "<small>*** p&lt;0.01, ** p&lt;0.05, * p&lt;0.1. "
+    "Standard errors clustered by school. "
+    "Published benchmarks: Col 7 = 0.141, Col 10 = 0.221.</small><br>"
+))
+```
 
-# Precompute sampling distributions
-theta_results = {}
+Both coefficients are **positive**: a larger class is *associated* with higher test scores. This is the wrong sign if we believe class size harms learning, and it is exactly the confound the paper warns about. Larger schools in Israel tend to be urban schools in more affluent municipalities, which have higher baseline achievement for reasons entirely unrelated to class size. The naive regression mistakenly credits large classes for this advantage.
 
-for n in sample_sizes:
-    theta_hats = []
-    for _ in range(n_sim):
-        A = np.random.binomial(1, pi_A, n)
-        B = np.random.binomial(1, pi_B, n)
-        theta_hats.append(A.mean() - B.mean())
-    theta_results[n] = np.array(theta_hats)
+### Reduced-Form RDD: Table III Panel A (Columns 7, 9, 11)
 
-# Common x-range for consistency across frames
-all_theta = np.concatenate(list(theta_results.values()))
-x_min = all_theta.min()
-x_max = all_theta.max()
+The paper's preferred approach replaces actual class size with `fsc` — the class size predicted by Maimonides' rule — as the explanatory variable. This is a **reduced-form regression** in the RDD framework: instead of using the endogenous actual class size, we use a function of enrollment that only shifts class sizes through the rule's discontinuities. The main control is `tipuach`, the fraction of disadvantaged students, which absorbs socioeconomic differences across schools.
 
-# Add a little padding so endpoint values like +1 are not lost on the boundary
-pad = 0.05
-bin_start = x_min - pad
-bin_end = x_max + pad
-bin_size = (bin_end - bin_start) / 30
+```{python}
+#| echo: false
 
-# Build frames
-frames = []
-for n in sample_sizes:
-    hist = go.Histogram(
-        x=theta_results[n],
-        nbinsx=30,
-        name=f"n = {n}",
-        xbins=dict(start=bin_start, end=bin_end, size=bin_size)
-    )
+# ── Table III Panel A (4th grade, full sample) ────────────────────────────────
+m3_7  = smf.ols("classize ~ fsc + tipuach", data=df3).fit(
+    cov_type="cluster", cov_kwds={"groups": df3["schlcode"]})
+m3_9  = smf.ols("avgverb ~ fsc + tipuach",  data=df3).fit(
+    cov_type="cluster", cov_kwds={"groups": df3["schlcode"]})
 
-    frames.append(
-        go.Frame(
-            data=[hist],
-            name=str(n),
-            layout=go.Layout(
-                title_text=f"Sampling Distribution of theta_hat (n = {n})"
-            )
-        )
-    )
+df3m  = df3.dropna(subset=["avgmath"])
+m3_11 = smf.ols("avgmath ~ fsc + tipuach",  data=df3m).fit(
+    cov_type="cluster", cov_kwds={"groups": df3m["schlcode"]})
 
-# Initial histogram
-initial_n = sample_sizes[0]
+c3_7,  s3_7  = fmt(m3_7,  "fsc")
+c3_9,  s3_9  = fmt(m3_9,  "fsc")
+c3_11, s3_11 = fmt(m3_11, "fsc")
 
-fig = go.Figure(
-    data=[
-        go.Histogram(
-            x=theta_results[initial_n],
-            nbinsx=30,
-            xbins=dict(start=bin_start, end=bin_end, size=bin_size)
-        )
+tbl3 = pd.DataFrame({
+    "": ["Coefficient on fsc", "Std. error", "Observations", "R²"],
+    "Col 7 — Class Size": [c3_7,  s3_7,  int(m3_7.nobs),  f"{m3_7.rsquared:.3f}"],
+    "Col 9 — Reading":    [c3_9,  s3_9,  int(m3_9.nobs),  f"{m3_9.rsquared:.3f}"],
+    "Col 11 — Math":      [c3_11, s3_11, int(m3_11.nobs), f"{m3_11.rsquared:.3f}"],
+})
+
+display(HTML(
+    "<b>Table III Panel A (4th grade): Reduced-Form RDD — fsc on Class Size and Scores</b><br>" +
+    tbl3.to_html(index=False, border=0,
+                 classes="table table-sm",
+                 justify="left") +
+    "<small>*** p&lt;0.01, ** p&lt;0.05, * p&lt;0.1. "
+    "Standard errors clustered by school. "
+    "Published benchmarks: Col 7 = 0.772, Col 9 = −0.085, Col 11 = 0.038.</small><br>"
+))
+```
+
+Three results stand out:
+
+1. **First stage (Col 7):** `fsc` strongly predicts actual class size. A one-unit increase in predicted class size raises actual class size by roughly 0.77. This confirms the instrument's relevance — Maimonides' rule genuinely shifts class sizes.
+
+2. **Reading (Col 9):** The coefficient on `fsc` is **negative**. Schools pushed into larger classes by the rule score lower on reading. This is the expected sign for a harmful effect of class size.
+
+3. **Math (Col 11):** The coefficient is small and near zero, suggesting weaker or noisier effects on math achievement for fourth graders.
+
+### Comparing Naive OLS vs. Reduced-Form RDD
+
+```{python}
+#| echo: false
+
+fs         = m3_7.params["fsc"]
+naive_read = m2_7.params["classize"]
+naive_math = m2_10.params["classize"]
+rf_read    = m3_9.params["fsc"]
+rf_math    = m3_11.params["fsc"]
+iv_read    = rf_read / fs
+iv_math    = rf_math / fs
+
+comp = pd.DataFrame({
+    "Estimate type": [
+        "Naive OLS (coeff on actual class size)",
+        "Reduced-form fsc (coeff on Maimonides' rule)",
+        "Informal IV  =  Reduced Form ÷ First Stage",
     ],
-    layout=go.Layout(
-        title=f"Sampling Distribution of theta_hat (n = {initial_n})",
-        xaxis=dict(
-            title="Estimated difference (theta_hat)",
-            range=[bin_start, bin_end]
-        ),
-        yaxis=dict(title="Frequency"),
-        shapes=[
-            dict(
-                type="line",
-                x0=true_theta,
-                x1=true_theta,
-                y0=0,
-                y1=1,
-                yref="paper",
-                line=dict(color="red", dash="dash", width=3)
-            )
-        ],
-        sliders=[
-            {
-                "currentvalue": {"prefix": "Sample size: "},
-                "pad": {"t": 40},
-                "steps": [
-                    {
-                        "args": [
-                            [str(n)],
-                            {
-                                "frame": {"duration": 0, "redraw": True},
-                                "mode": "immediate",
-                                "transition": {"duration": 0}
-                            }
-                        ],
-                        "label": str(n),
-                        "method": "animate"
-                    }
-                    for n in sample_sizes
-                ]
-            }
-        ]
-    ),
-    frames=frames
-)
+    "Reading": [f"{naive_read:.3f}", f"{rf_read:.3f}", f"{iv_read:.3f}"],
+    "Math":    [f"{naive_math:.3f}", f"{rf_math:.3f}", f"{iv_math:.3f}"],
+})
 
-fig.show()
+display(HTML(
+    "<b>Summary: Naive OLS vs. RDD-Based Estimates</b><br>" +
+    comp.to_html(index=False, border=0,
+                 classes="table table-sm",
+                 justify="left")
+))
 ```
 
-::: {.callout-note}
-Each individual observation is still either 0 or 1 (sign up or not). However, once we take multiple observations, we are no longer working with just 0s and 1s—we are working with averages.
+The pattern is stark. For reading, the naive OLS estimate is **positive** (around +0.14), while the informal IV estimate — the reduced-form coefficient divided by the first stage — is **negative** (roughly −0.11). For math, a large positive naive coefficient of about +0.22 shrinks to near zero once we use the instrumental variable strategy.
 
-For example, when $n = 1$, a single draw might look like:
+The reason is selection bias. Larger Israeli schools tend to serve wealthier urban communities with higher baseline achievement. A naive regression attributes this socioeconomic advantage to large class sizes, yielding a spurious positive relationship. Maimonides' rule generates variation in class size that is driven purely by enrollment falling just above or below a threshold — a shift unrelated to school wealth. When we isolate this source of variation, the confound disappears and a negative (or much smaller) effect emerges.
 
-A: [1] → 1
-B: [0] → 0
+## Something Additional: Visualizing the Upward Bias
 
-So the difference is:
-$$
-\hat{\theta} = 1 - 0 = 1
-$$
-In this case, there are only a few possible values, which is why the distribution looks very discrete.
-
-Now, when $n = 5$, we might observe something like:
-
-A: [1, 0, 1, 0, 0] → 2/5 = 0.4
-B: [0, 0, 1, 0, 0] → 1/5 = 0.2
-
-The difference is now:
-$$
-\hat{\theta} = 0.4 - 0.2 = 0.2
-$$
-
-Because we are averaging more observations, the estimator $\hat{\theta} = \bar{X}_A - \bar{X}_B$ can take on many more possible values. As $n$ increases, these values become more closely spaced, which is why the distribution starts to look smoother and less discrete.
-:::
-
-## Hypothesis Testing
-
-Now that we have seen the CLT in action — that the sampling distribution of $\hat\theta$ is approximately Normal for large samples — we can use this result to perform a formal hypothesis test.
-
-::: {.callout-important}
-A hypothesis test is a method for using sample data to evaluate whether a claim about a population is likely to be true.
-:::
-
- In this case, we start with a null hypothesis $H_0: \theta = 0$, which means that the two CTAs produce the same sign-up rate and there is no real difference between them. The alternative hypothesis $H_1: \theta \neq 0$ represents the idea that there is a difference between the two CTAs. The goal of the test is to use our sample data to determine whether there is enough evidence to reject the null hypothesis and conclude that a meaningful difference exists.
-
-We standardize $\hat{\theta}$ to understand how unusual our estimate is under the null hypothesis. Since $H_0$ assumes the true difference is 0, we subtract 0 and divide by the standard error to measure how many standard deviations our estimate is from 0:
-$$
-z = \frac{\hat\theta - 0}{SE(\hat\theta)}
-$$
-
-By the Central Limit Theorem, $\hat{\theta}$ is approximately normally distributed for large samples, and under $H_0$ it is centered at 0. Dividing by the standard error puts it on a standardized scale, so under the null we have $z \dot\sim N(0,1)$.
-
-Once we know this distribution, we can compute a p-value, which tells us how likely it is to observe a result this extreme if the null hypothesis were true.
-
+The bar chart below makes the confounding concrete. For each subject, it shows the naive OLS estimate alongside the informal IV estimate derived from the RDD design.
 
 ```{python}
-#| code-fold: true
-#| code-summary: "Show slider code"
+#| echo: false
+#| label: fig-comparison
+#| fig-cap: "Naive OLS vs. informal IV estimates of the effect of class size on test scores (4th grade, Israel 1991). The informal IV is computed as the reduced-form coefficient on fsc divided by the first-stage coefficient on fsc. The sign reversal for reading illustrates how upward bias from socioeconomic sorting distorts the naive estimate."
 
-import numpy as np
-import plotly.graph_objects as go
-from scipy.stats import norm
+fig, ax = plt.subplots(figsize=(8, 5))
 
-# Grid for standard normal curve
-x = np.linspace(-4, 4, 1000)
-y = norm.pdf(x)
+outcomes   = ["Reading", "Math"]
+naive_vals = [naive_read, naive_math]
+iv_vals    = [iv_read,    iv_math]
 
-# z-values the slider will move through
-z_values = np.round(np.arange(0.0, 3.1, 0.1), 1)
+x     = np.arange(len(outcomes))
+width = 0.35
 
-frames = []
+bars1 = ax.bar(x - width / 2, naive_vals, width,
+               label="Naive OLS", color="#4C72B0", alpha=0.88)
+bars2 = ax.bar(x + width / 2, iv_vals,   width,
+               label="Informal IV (RDD)", color="#55A868", alpha=0.88)
 
-for z in z_values:
-    right_mask = x >= z
-    left_mask = x <= -z
-    p_value = 2 * (1 - norm.cdf(z))
-
-    frames.append(
-        go.Frame(
-            name=str(z),
-            data=[
-                go.Scatter(
-                    x=x, y=y,
-                    mode="lines",
-                    name="Standard Normal",
-                    line=dict(color="black")
-                ),
-                go.Scatter(
-                    x=x[right_mask], y=y[right_mask],
-                    mode="lines",
-                    fill="tozeroy",
-                    name="Right tail",
-                    line=dict(color="red")
-                ),
-                go.Scatter(
-                    x=x[left_mask], y=y[left_mask],
-                    mode="lines",
-                    fill="tozeroy",
-                    name="Left tail",
-                    line=dict(color="red")
-                )
-            ],
-            layout=go.Layout(
-                title=f"Standard Normal Distribution with z = {z:.1f} and p-value = {p_value:.4f}",
-                shapes=[
-                    dict(
-                        type="line",
-                        x0=z, x1=z, y0=0, y1=norm.pdf(z),
-                        line=dict(color="blue", dash="dash", width=2)
-                    ),
-                    dict(
-                        type="line",
-                        x0=-z, x1=-z, y0=0, y1=norm.pdf(-z),
-                        line=dict(color="blue", dash="dash", width=2)
-                    )
-                ]
-            )
-        )
-    )
-
-# Initial value
-z0 = z_values[0]
-right_mask = x >= z0
-left_mask = x <= -z0
-p0 = 2 * (1 - norm.cdf(z0))
-
-fig = go.Figure(
-    data=[
-        go.Scatter(
-            x=x, y=y,
-            mode="lines",
-            name="Standard Normal",
-            line=dict(color="black")
-        ),
-        go.Scatter(
-            x=x[right_mask], y=y[right_mask],
-            mode="lines",
-            fill="tozeroy",
-            name="Right tail",
-            line=dict(color="red")
-        ),
-        go.Scatter(
-            x=x[left_mask], y=y[left_mask],
-            mode="lines",
-            fill="tozeroy",
-            name="Left tail",
-            line=dict(color="red")
-        )
-    ],
-    layout=go.Layout(
-        title=f"Standard Normal Distribution with z = {z0:.1f} and p-value = {p0:.4f}",
-        xaxis=dict(title="z", range=[-4, 4]),
-        yaxis=dict(title="Density"),
-        shapes=[
-            dict(
-                type="line",
-                x0=z0, x1=z0, y0=0, y1=norm.pdf(z0),
-                line=dict(color="blue", dash="dash", width=2)
-            ),
-            dict(
-                type="line",
-                x0=-z0, x1=-z0, y0=0, y1=norm.pdf(-z0),
-                line=dict(color="blue", dash="dash", width=2)
-            )
-        ],
-        sliders=[
-            {
-                "currentvalue": {"prefix": "z-value: "},
-                "pad": {"t": 40},
-                "steps": [
-                    {
-                        "args": [
-                            [str(z)],
-                            {"frame": {"duration": 0, "redraw": True},
-                             "mode": "immediate",
-                             "transition": {"duration": 0}}
-                        ],
-                        "label": str(z),
-                        "method": "animate"
-                    }
-                    for z in z_values
-                ]
-            }
-        ]
-    ),
-    frames=frames
+ax.axhline(0, color="black", linewidth=0.9)
+ax.set_xticks(x)
+ax.set_xticklabels(outcomes, fontsize=13)
+ax.set_ylabel("Estimated effect of class size on test score", fontsize=11)
+ax.set_title(
+    "Naive OLS vs. RDD-Based Estimate of Class Size Effect\n4th Grade, Israel 1991",
+    fontsize=12, fontweight="bold",
 )
+ax.legend(fontsize=11)
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 
-fig.show()
+for bar in list(bars1) + list(bars2):
+    h = bar.get_height()
+    offset = 0.006 if h >= 0 else -0.015
+    va     = "bottom" if h >= 0 else "top"
+    ax.text(bar.get_x() + bar.get_width() / 2, h + offset,
+            f"{h:.3f}", ha="center", va=va, fontsize=10, fontweight="bold")
+
+plt.tight_layout()
+plt.show()
 ```
 
-The plot above shows the standard normal distribution under the null hypothesis. The dashed vertical lines represent the value of the test statistic $z$ and its negative. The shaded areas in the tails represent the probability of observing a value at least this extreme if the null hypothesis were true. This shaded area is the p-value.
+For reading, the naive estimate and the IV estimate are not just different in magnitude — they are **opposite in sign**. Naive OLS says larger classes are associated with *higher* scores (+0.14). The IV estimate says larger classes *lower* scores (about −0.11). This is a textbook example of omitted-variable bias: once you control for the endogenous sorting of students into schools, the naive positive estimate completely reverses.
 
-As the value of $z$ moves farther away from 0, the shaded area gets smaller. This means the p-value decreases, which provides stronger evidence against the null hypothesis. In other words, large values of $|z|$ correspond to results that would be unlikely to occur by chance if $H_0$ were true.
+For math, the story is similar in direction — the large positive naive coefficient (+0.22) shrinks dramatically — but the IV estimate stays mildly positive and small (+0.05), suggesting the effect of class size on math may be genuinely weaker or noisier for fourth graders.
 
-In practice, we compare the p-value to a chosen significance level (often denoted $\alpha$) to decide whether to reject the null hypothesis. Common thresholds are:
+A few caveats about this replication are worth noting. The original paper uses Moulton (1986) corrected standard errors, which account for within-school clustering in a specific way; this replication uses the standard Liang–Zeger cluster-robust sandwich estimator, so standard errors may differ slightly even when point estimates match. Additionally, the paper's preferred estimates in Table IV use formal two-stage least squares with richer controls; the informal Wald estimates shown here are illustrative. Despite these caveats, the main message of the paper comes through clearly: **naive comparisons of class sizes are misleading**, and the discontinuities created by Maimonides' rule provide a credible way to recover a causal estimate of class size on student achievement.
 
-| Significance Level ($\alpha$) | Confidence Level | Approx. Critical $|z|$ | Interpretation |
-|------------------------------|------------------|------------------------|----------------|
-| 0.10                         | 90%              | 1.64                   | Weak evidence against $H_0$ |
-| 0.05                         | 95%              | 1.96                   | Moderate evidence against $H_0$ |
-| 0.01                         | 99%              | 2.58                   | Strong evidence against $H_0$ |
+---
 
-If the p-value is less than $\alpha$, we reject the null hypothesis. Otherwise, we do not reject it.
-
-Another way to think about this is through confidence intervals. For example, a 95% confidence interval corresponds to a significance level of $\alpha = 0.05$. If the interval does not include 0, that is equivalent to rejecting the null hypothesis at the 5% level.
-
-This is sometimes referred to as a “t-test,” but that is not exactly what we are doing here. The classical t-test comes from a setting where the data are normally distributed and the variance is unknown, so we estimate it from the data. In that case, the resulting test statistic follows an exact t-distribution.
-
-In our setting, however, the data are Bernoulli (0 or 1), not normally distributed, so there is no exact t-distribution result. Instead, we rely on the Central Limit Theorem, which tells us that our estimator is approximately normally distributed when the sample size is large. Because of this, our test statistic is better thought of as following an approximate standard normal distribution.
-
-In practice, this distinction does not matter much for large samples, since the t-distribution and the standard normal distribution are very similar. However, it is still important to understand where each result comes from and why we are using this approximation.
-:::
-
-Use the slider below to change the degrees of freedom and see how the t-distribution compares to the standard normal distribution.
-
-```{python}
-#| code-fold: true
-#| code-summary: "Show slider code"
-
-import numpy as np
-import plotly.graph_objects as go
-from scipy.stats import norm, t
-
-# x-grid
-x = np.linspace(-5, 5, 1000)
-
-# standard normal density
-normal_y = norm.pdf(x)
-
-# degrees of freedom to show
-df_values = [1, 2, 3, 5, 10, 20, 30, 50, 100]
-
-frames = []
-
-for df in df_values:
-    t_y = t.pdf(x, df)
-
-    frames.append(
-        go.Frame(
-            name=str(df),
-            data=[
-                go.Scatter(
-                    x=x,
-                    y=normal_y,
-                    mode="lines",
-                    name="Standard Normal",
-                    line=dict(color="black", width=3)
-                ),
-                go.Scatter(
-                    x=x,
-                    y=t_y,
-                    mode="lines",
-                    name=f"t-distribution (df = {df})",
-                    line=dict(color="purple", width=3, dash="dash")
-                )
-            ],
-            layout=go.Layout(
-                title=f"t-Distribution vs. Standard Normal (df = {df})"
-            )
-        )
-    )
-
-# initial df
-df0 = df_values[0]
-t0_y = t.pdf(x, df0)
-
-fig = go.Figure(
-    data=[
-        go.Scatter(
-            x=x,
-            y=normal_y,
-            mode="lines",
-            name="Standard Normal",
-            line=dict(color="black", width=3)
-        ),
-        go.Scatter(
-            x=x,
-            y=t0_y,
-            mode="lines",
-            name=f"t-distribution (df = {df0})",
-            line=dict(color="purple", width=3, dash="dash")
-        )
-    ],
-    layout=go.Layout(
-        title=f"t-Distribution vs. Standard Normal (df = {df0})",
-        xaxis=dict(title="Value", range=[-5, 5]),
-        yaxis=dict(title="Density"),
-        sliders=[
-            {
-                "currentvalue": {"prefix": "Degrees of freedom: "},
-                "pad": {"t": 40},
-                "steps": [
-                    {
-                        "args": [
-                            [str(df)],
-                            {
-                                "frame": {"duration": 0, "redraw": True},
-                                "mode": "immediate",
-                                "transition": {"duration": 0}
-                            }
-                        ],
-                        "label": str(df),
-                        "method": "animate"
-                    }
-                    for df in df_values
-                ]
-            }
-        ]
-    ),
-    frames=frames
-)
-
-fig.show()
-```
-
-::: {.callout-note}
-When the degrees of freedom are small, the t-distribution has heavier tails, but as the degrees of freedom increase, it becomes almost identical to the normal distribution.
-:::
-
-Using our simulated data, we compute the test statistic by standardizing our estimate of $\hat{\theta}$ and then calculate the corresponding p-value using the standard normal distribution.
-
-```{python}
-from scipy.stats import norm
-
-# Estimate
-theta_hat = (
-    data.filter(pl.col("group") == "A")["outcome"].mean()
-    - data.filter(pl.col("group") == "B")["outcome"].mean()
-)
-
-# Test statistic
-z_stat = theta_hat / analytic_se
-
-# Two-sided p-value
-p_value = 2 * (1 - norm.cdf(abs(z_stat)))
-
-round(float(theta_hat), 3), round(float(z_stat), 3), round(float(p_value), 3)
-```
-
-The estimated difference in sign-up rates is `{python} round(float(theta_hat), 3)`, with a test statistic of `{python} round(float(z_stat), 2)` and a p-value of `{python} round(float(p_value), 3)`. This means that, assuming the null hypothesis is true, there is about `{python} round(100 * float(p_value), 3)`% chance of observing a result this extreme purely due to random variation.
-
-Since the p-value is below the 0.05 significance level, we reject the null hypothesis. This suggests that there is statistically significant evidence of a difference in sign-up rates between the two CTAs, with CTA A performing better than CTA B.
-
-## The T-Test as a Regression
-
-::: {.callout-note}
-- It turns out that the two-sample test we just ran is mathematically equivalent to a simple linear regression.
-
-- Understanding this connection is useful because it means the same machinery --- and the same software --- that you use for regression can also perform hypothesis tests, and it generalizes naturally to more complex experimental designs.
-:::
-
-It turns out that the two-sample test we just ran can also be written as a simple linear regression. This is useful because it shows that hypothesis testing and regression are closely connected. In practice, this means we can use the same regression tools and software to answer the same question, and that framework can easily be extended to more complicated settings later on.
-
-To set this up, we combine the CTA A and CTA B observations into one dataset. For each visitor, we define an outcome variable $Y_i$ that equals 1 if the visitor signed up and 0 otherwise. We also define an indicator variable $D_i$ that equals 1 if the visitor saw CTA A and 0 if the visitor saw CTA B. We then fit the regression
-$$
-Y_i = \beta_0 + \beta_1 D_i + \varepsilon_i
-$$
-which lets us estimate the difference in average sign-up rates between the two groups.
-
-We can interpret the coefficients in this regression in a straightforward way. First, $\beta_0$ represents the expected value of $Y_i$ when $D_i = 0$. Since $D_i = 0$ corresponds to CTA B, this is just the average sign-up rate for group B, which estimates $\pi_B$.
-
-Next, when $D_i = 1$ (CTA A), the expected value of $Y_i$ becomes $\beta_0 + \beta_1$. This is the average sign-up rate for group A, which estimates $\pi_A$.
-
-Putting this together, $\beta_1$ captures the difference between the two groups. Specifically, $\beta_1 = \pi_A - \pi_B = \theta$. This means the estimated coefficient $\hat{\beta}_1$ is exactly the same as the difference in sample means, $\hat{\theta} = \bar{X}_A - \bar{X}_B$.
-
-We can now fit this regression using our simulated data and compare the results to the two-sample test we ran earlier.
-
-```{python}
-
-import statsmodels.api as sm
-
-# Create indicator variable D (1 for A, 0 for B)
-df_reg = data.with_columns(
-    (pl.col("group") == "A").cast(int).alias("D")
-)
-
-# Convert to pandas for statsmodels
-df_reg_pd = df_reg.to_pandas()
-
-# Define variables
-Y = df_reg_pd["outcome"]
-X = sm.add_constant(df_reg_pd["D"])  # adds intercept
-
-# Fit regression
-model = sm.OLS(Y, X).fit()
-
-model.summary()
-```
-
-From the regression results, the coefficient on $D_i$ is 0.038. This means that showing CTA A increases the sign-up rate by about 3.8 percentage points compared to CTA B. This matches exactly with the difference in sample means we computed earlier.
-
-The standard error for this estimate is approximately 0.018, which leads to a t-statistic of 2.14 and a p-value of 0.033. Since the p-value is below the 0.05 significance level, we reject the null hypothesis and conclude that there is statistically significant evidence of a difference in sign-up rates between the two CTAs.
-
-These results are very consistent with the two-sample test we ran earlier. The estimated effect, test statistic, and p-value are nearly identical. Any small differences come from how the standard error is calculated: the regression uses a pooled variance, while the two-sample approach allows for separate variances. In this case, the difference is minimal.
-
-Overall, both approaches lead to the same conclusion: CTA A performs better than CTA B.
-
-
-## The Problem with Peeking
-
-
-Your boss is impatient. Rather than waiting until all 1,000 visitors have been assigned to each group, she wants to run the hypothesis test after every 100 visitors per group — peeking at the results after 100, 200, 300, ..., up to 1,000 visitors per group (10 tests in total). If any of those tests comes back significant at the $\alpha = 0.05$ level, she wants to declare a winner and stop the experiment early.
-
-This is problematic because the 5% false positive rate only applies to a *single* test. Each time we peek at the data, we are effectively running another test. This creates multiple opportunities to incorrectly reject the null hypothesis. As a result, the overall probability of making at least one false positive across all the peeks becomes much larger than 5%.
-
-We can demonstrate this with a simulation.
-
-```{python}
-import numpy as np
-from scipy.stats import norm
-
-np.random.seed(42)
-
-# True probabilities under the null
-pi_A = 0.20
-pi_B = 0.20
-
-n_total = 1000
-peek_points = np.arange(100, 1001, 100)
-n_sim = 10000
-
-false_positive_count = 0
-
-for _ in range(n_sim):
-    A = np.random.binomial(1, pi_A, n_total)
-    B = np.random.binomial(1, pi_B, n_total)
-
-    significant = False
-
-    for n in peek_points:
-        A_n = A[:n]
-        B_n = B[:n]
-
-        theta_hat = A_n.mean() - B_n.mean()
-
-        # standard error (pooled approximation)
-        se = np.sqrt(
-            (A_n.mean() * (1 - A_n.mean()) / n) +
-            (B_n.mean() * (1 - B_n.mean()) / n)
-        )
-
-        z = theta_hat / se if se > 0 else 0
-        p_value = 2 * (1 - norm.cdf(abs(z)))
-
-        if p_value < 0.05:
-            significant = True
-            break
-
-    if significant:
-        false_positive_count += 1
-
-false_positive_rate = false_positive_count / n_sim
-false_positive_rate
-```
-
-The simulation shows that the empirical false positive rate under peeking is 0.1864, or about 18.6%. This is much higher than the nominal 5% false positive rate of a single hypothesis test.
-
-This happens because each peek at the data creates another opportunity to reject the null hypothesis by chance alone. Even if there is truly no difference between the two CTAs, repeatedly testing the data makes it much more likely that at least one of those tests will produce a statistically significant result.
-
-
-::: {.callout-warning}
-In practice, this means that peeking can lead us to declare a winner too early and make decisions based on noise rather than a real effect. For A/B testing, this is why it is important to either commit to a fixed sample size in advance or use methods that are specifically designed for sequential testing.
-:::
+*Data source: Angrist and Lavy (1999), "Using Maimonides' Rule to Estimate the Effect of Class Size on Scholastic Achievement," Quarterly Journal of Economics 114(2): 533–575. Data obtained from the authors' replication files.*
