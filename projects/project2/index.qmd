@@ -69,7 +69,7 @@ $$\text{fsc} = \frac{\text{enrollment}}{\lfloor (\text{enrollment} - 1)/40 \rflo
 
 This nonlinear function of enrollment creates **quasi-experimental variation** in class size. By comparing outcomes near the thresholds — and by controlling for smooth enrollment effects — the authors can attribute differences in achievement specifically to the discontinuous shifts in class size, rather than to correlated socioeconomic factors.
 
-This post replicates three core pieces of the paper using Israel's 1991 fourth-grade data: (1) Figure 1 Panel B, showing how actual class sizes track Maimonides' rule; (2) the naive OLS estimates from Table II, which serve as a confounded baseline; and (3) the reduced-form RDD estimates from Table III Panel A, which use the rule as an instrument.
+This post replicates three core pieces of the paper using Israel's 1991 fourth-grade data: (1) Figure 1 Panel B, showing how actual class sizes track Maimonides' rule; (2) the naive OLS estimates from Table II, which serve as a confounded baseline; and (3) the reduced-form RDD estimates from Table III Panel A, which use the rule-generated variation in class size. I then add a compact benchmark check and a visualization to show how far naive and design-based estimates diverge.
 
 ## Main Analysis
 
@@ -164,7 +164,7 @@ Both coefficients are **positive**: a larger class is *associated* with higher t
 
 ### Reduced-Form RDD: Table III Panel A (Columns 7, 9, 11)
 
-The paper's preferred approach replaces actual class size with `fsc` — the class size predicted by Maimonides' rule — as the explanatory variable. This is a **reduced-form regression** in the RDD framework: instead of using the endogenous actual class size, we use a function of enrollment that only shifts class sizes through the rule's discontinuities. The main control is `tipuach`, the fraction of disadvantaged students, which absorbs socioeconomic differences across schools.
+The paper's preferred design uses `fsc` — the class size predicted by Maimonides' rule — to isolate variation in class size that is plausibly exogenous near enrollment cutoffs. The estimates below are **reduced-form/first-stage style regressions** in the same spirit as Table III Panel A: they show how this rule-based variation maps into realized class size and outcomes, controlling for `tipuach` (the fraction of disadvantaged students) to absorb smooth socioeconomic differences across schools.
 
 ```{python}
 #| echo: false
@@ -209,6 +209,45 @@ Three results stand out:
 
 3. **Math (Col 11):** The coefficient is small and near zero, suggesting weaker or noisier effects on math achievement for fourth graders.
 
+### How Close Is the Replication to the Published Numbers?
+
+To make the replication quality explicit, the next table compares each key coefficient to the benchmark reported in Angrist and Lavy (1999), then reports the absolute difference.
+
+```{python}
+#| echo: false
+
+bench = pd.DataFrame({
+    "Estimate": [
+        "Table II Col 7 (Naive OLS, Reading)",
+        "Table II Col 10 (Naive OLS, Math)",
+        "Table IIIA Col 7 (First stage on fsc)",
+        "Table IIIA Col 9 (Reduced form, Reading)",
+        "Table IIIA Col 11 (Reduced form, Math)",
+    ],
+    "Replication": [
+        m2_7.params["classize"],
+        m2_10.params["classize"],
+        m3_7.params["fsc"],
+        m3_9.params["fsc"],
+        m3_11.params["fsc"],
+    ],
+    "Published": [0.141, 0.221, 0.772, -0.085, 0.038],
+})
+bench["Abs. difference"] = (bench["Replication"] - bench["Published"]).abs()
+
+bench_fmt = bench.copy()
+for col in ["Replication", "Published", "Abs. difference"]:
+    bench_fmt[col] = bench_fmt[col].map(lambda x: f"{x:.3f}")
+
+display(HTML(
+    "<b>Replication Accuracy Check Against Published Coefficients</b><br>" +
+    bench_fmt.to_html(index=False, border=0, classes="table table-sm", justify="left") +
+    "<small>Smaller absolute differences indicate closer replication to the published estimates.</small><br>"
+))
+```
+
+The differences are small, which supports that the data cleaning, sample restrictions, and model specifications are closely aligned with the original study.
+
 ### Comparing Naive OLS vs. Reduced-Form RDD
 
 ```{python}
@@ -246,7 +285,7 @@ The reason is selection bias. Larger Israeli schools tend to serve wealthier urb
 
 ## Something Additional: Visualizing the Upward Bias
 
-The bar chart below makes the confounding concrete. For each subject, it shows the naive OLS estimate alongside the informal IV estimate derived from the RDD design.
+The bar chart below makes the confounding concrete. For each subject, it shows the naive OLS estimate alongside the informal IV estimate derived from the reduced form divided by the first stage.
 
 ```{python}
 #| echo: false
@@ -290,12 +329,12 @@ plt.tight_layout()
 plt.show()
 ```
 
-For reading, the naive estimate and the IV estimate are not just different in magnitude — they are **opposite in sign**. Naive OLS says larger classes are associated with *higher* scores (+0.14). The IV estimate says larger classes *lower* scores (about −0.11). This is a textbook example of omitted-variable bias: once you control for the endogenous sorting of students into schools, the naive positive estimate completely reverses.
+For reading, the naive estimate and the IV estimate are not just different in magnitude — they are **opposite in sign**. Naive OLS says larger classes are associated with *higher* scores (+0.14). The IV estimate says larger classes *lower* scores (about −0.11). This is a textbook example of omitted-variable bias: once the variation in class size is tied to the enrollment rule rather than school sorting, the naive positive estimate reverses.
 
 For math, the story is similar in direction — the large positive naive coefficient (+0.22) shrinks dramatically — but the IV estimate stays mildly positive and small (+0.05), suggesting the effect of class size on math may be genuinely weaker or noisier for fourth graders.
 
-A few caveats about this replication are worth noting. The original paper uses Moulton (1986) corrected standard errors, which account for within-school clustering in a specific way; this replication uses the standard Liang–Zeger cluster-robust sandwich estimator, so standard errors may differ slightly even when point estimates match. Additionally, the paper's preferred estimates in Table IV use formal two-stage least squares with richer controls; the informal Wald estimates shown here are illustrative. Despite these caveats, the main message of the paper comes through clearly: **naive comparisons of class sizes are misleading**, and the discontinuities created by Maimonides' rule provide a credible way to recover a causal estimate of class size on student achievement.
+A few caveats about this replication are worth noting. The original paper uses Moulton (1986) corrected standard errors, which account for within-school clustering in a specific way; this replication uses the standard Liang-Zeger cluster-robust sandwich estimator, so standard errors may differ slightly even when point estimates match. In addition, the paper's preferred estimates in Table IV use formal two-stage least squares with richer controls; the informal Wald estimates shown here are primarily interpretive. Despite these caveats, the main message of the paper comes through clearly: **naive comparisons of class sizes are misleading**, and the discontinuities created by Maimonides' rule provide a credible strategy for causal inference.
 
 ---
 
-*Data source: Angrist and Lavy (1999), "Using Maimonides' Rule to Estimate the Effect of Class Size on Scholastic Achievement," Quarterly Journal of Economics 114(2): 533–575. Data obtained from the authors' replication files.*
+*Data source: Angrist and Lavy (1999), "Using Maimonides' Rule to Estimate the Effect of Class Size on Scholastic Achievement," Quarterly Journal of Economics 114(2): 533-575. Data obtained from the authors' replication files.*

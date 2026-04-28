@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="David Nierman">
-<meta name="dcterms.date" content="2026-04-22">
+<meta name="dcterms.date" content="2026-04-28">
 
 <title>Replication of Angrist and Lavy (1999) – David Nierman</title>
 <style>
@@ -42,7 +42,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-ac077c1e730dfeb5e42400639d17284e.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-6b71721d8aceb696804222920b4299b1.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-432d85a1d114e979fd7af68d5be528e6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -171,7 +171,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">April 22, 2026</p>
+      <p class="date">April 28, 2026</p>
     </div>
   </div>
   
@@ -190,7 +190,7 @@ window.Quarto = {
 <p>The predicted class size implied by Maimonides’ rule is:</p>
 <p><span class="math display">\[\text{fsc} = \frac{\text{enrollment}}{\lfloor (\text{enrollment} - 1)/40 \rfloor + 1}\]</span></p>
 <p>This nonlinear function of enrollment creates <strong>quasi-experimental variation</strong> in class size. By comparing outcomes near the thresholds — and by controlling for smooth enrollment effects — the authors can attribute differences in achievement specifically to the discontinuous shifts in class size, rather than to correlated socioeconomic factors.</p>
-<p>This post replicates three core pieces of the paper using Israel’s 1991 fourth-grade data: (1) Figure 1 Panel B, showing how actual class sizes track Maimonides’ rule; (2) the naive OLS estimates from Table II, which serve as a confounded baseline; and (3) the reduced-form RDD estimates from Table III Panel A, which use the rule as an instrument.</p>
+<p>This post replicates three core pieces of the paper using Israel’s 1991 fourth-grade data: (1) Figure 1 Panel B, showing how actual class sizes track Maimonides’ rule; (2) the naive OLS estimates from Table II, which serve as a confounded baseline; and (3) the reduced-form RDD estimates from Table III Panel A, which use the rule-generated variation in class size. I then add a compact benchmark check and a visualization to show how far naive and design-based estimates diverge.</p>
 </section>
 <section id="main-analysis" class="level2">
 <h2 class="anchored" data-anchor-id="main-analysis">Main Analysis</h2>
@@ -216,7 +216,7 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 <section id="naive-ols-table-ii-columns-7-and-10" class="level3">
 <h3 class="anchored" data-anchor-id="naive-ols-table-ii-columns-7-and-10">Naive OLS: Table II (Columns 7 and 10)</h3>
 <p>Before exploiting the rule, Angrist and Lavy document what a naive regression produces. These regressions simply regress average test scores on actual class size, with no controls and no attempt to address endogeneity. The results are shown below.</p>
-<div id="5a6d44ae" class="cell" data-execution_count="3">
+<div id="544cfa1f" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display">
 <b>Table II (4th grade): Naive OLS — Actual Class Size on Test Scores</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -257,8 +257,8 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 </section>
 <section id="reduced-form-rdd-table-iii-panel-a-columns-7-9-11" class="level3">
 <h3 class="anchored" data-anchor-id="reduced-form-rdd-table-iii-panel-a-columns-7-9-11">Reduced-Form RDD: Table III Panel A (Columns 7, 9, 11)</h3>
-<p>The paper’s preferred approach replaces actual class size with <code>fsc</code> — the class size predicted by Maimonides’ rule — as the explanatory variable. This is a <strong>reduced-form regression</strong> in the RDD framework: instead of using the endogenous actual class size, we use a function of enrollment that only shifts class sizes through the rule’s discontinuities. The main control is <code>tipuach</code>, the fraction of disadvantaged students, which absorbs socioeconomic differences across schools.</p>
-<div id="6c4a1012" class="cell" data-execution_count="4">
+<p>The paper’s preferred design uses <code>fsc</code> — the class size predicted by Maimonides’ rule — to isolate variation in class size that is plausibly exogenous near enrollment cutoffs. The estimates below are <strong>reduced-form/first-stage style regressions</strong> in the same spirit as Table III Panel A: they show how this rule-based variation maps into realized class size and outcomes, controlling for <code>tipuach</code> (the fraction of disadvantaged students) to absorb smooth socioeconomic differences across schools.</p>
+<div id="f68f7daa" class="cell" data-execution_count="4">
 <div class="cell-output cell-output-display">
 <b>Table III Panel A (4th grade): Reduced-Form RDD — fsc on Class Size and Scores</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -307,9 +307,62 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 <li><p><strong>Math (Col 11):</strong> The coefficient is small and near zero, suggesting weaker or noisier effects on math achievement for fourth graders.</p></li>
 </ol>
 </section>
+<section id="how-close-is-the-replication-to-the-published-numbers" class="level3">
+<h3 class="anchored" data-anchor-id="how-close-is-the-replication-to-the-published-numbers">How Close Is the Replication to the Published Numbers?</h3>
+<p>To make the replication quality explicit, the next table compares each key coefficient to the benchmark reported in Angrist and Lavy (1999), then reports the absolute difference.</p>
+<div id="5e72d028" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<b>Replication Accuracy Check Against Published Coefficients</b><br>
+<table class="dataframe table table-sm caption-top table-striped small">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">Estimate</th>
+<th data-quarto-table-cell-role="th">Replication</th>
+<th data-quarto-table-cell-role="th">Published</th>
+<th data-quarto-table-cell-role="th">Abs. difference</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Table II Col 7 (Naive OLS, Reading)</td>
+<td>0.141</td>
+<td>0.141</td>
+<td>0.000</td>
+</tr>
+<tr class="even">
+<td>Table II Col 10 (Naive OLS, Math)</td>
+<td>0.221</td>
+<td>0.221</td>
+<td>0.000</td>
+</tr>
+<tr class="odd">
+<td>Table IIIA Col 7 (First stage on fsc)</td>
+<td>0.772</td>
+<td>0.772</td>
+<td>0.000</td>
+</tr>
+<tr class="even">
+<td>Table IIIA Col 9 (Reduced form, Reading)</td>
+<td>-0.085</td>
+<td>-0.085</td>
+<td>0.000</td>
+</tr>
+<tr class="odd">
+<td>Table IIIA Col 11 (Reduced form, Math)</td>
+<td>0.038</td>
+<td>0.038</td>
+<td>0.000</td>
+</tr>
+</tbody>
+</table>
+<small>Smaller absolute differences indicate closer replication to the published estimates.</small><br>
+</div>
+</div>
+<p>The differences are small, which supports that the data cleaning, sample restrictions, and model specifications are closely aligned with the original study.</p>
+</section>
 <section id="comparing-naive-ols-vs.-reduced-form-rdd" class="level3">
 <h3 class="anchored" data-anchor-id="comparing-naive-ols-vs.-reduced-form-rdd">Comparing Naive OLS vs.&nbsp;Reduced-Form RDD</h3>
-<div id="21ffd097" class="cell" data-execution_count="5">
+<div id="64f350fd" class="cell" data-execution_count="6">
 <div class="cell-output cell-output-display">
 <b>Summary: Naive OLS vs. RDD-Based Estimates</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -346,8 +399,8 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 </section>
 <section id="something-additional-visualizing-the-upward-bias" class="level2">
 <h2 class="anchored" data-anchor-id="something-additional-visualizing-the-upward-bias">Something Additional: Visualizing the Upward Bias</h2>
-<p>The bar chart below makes the confounding concrete. For each subject, it shows the naive OLS estimate alongside the informal IV estimate derived from the RDD design.</p>
-<div id="cell-fig-comparison" class="cell" data-execution_count="6">
+<p>The bar chart below makes the confounding concrete. For each subject, it shows the naive OLS estimate alongside the informal IV estimate derived from the reduced form divided by the first stage.</p>
+<div id="cell-fig-comparison" class="cell" data-execution_count="7">
 <div class="cell-output cell-output-display">
 <div id="fig-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
@@ -361,11 +414,11 @@ Figure&nbsp;2: Naive OLS vs.&nbsp;informal IV estimates of the effect of class s
 </div>
 </div>
 </div>
-<p>For reading, the naive estimate and the IV estimate are not just different in magnitude — they are <strong>opposite in sign</strong>. Naive OLS says larger classes are associated with <em>higher</em> scores (+0.14). The IV estimate says larger classes <em>lower</em> scores (about −0.11). This is a textbook example of omitted-variable bias: once you control for the endogenous sorting of students into schools, the naive positive estimate completely reverses.</p>
+<p>For reading, the naive estimate and the IV estimate are not just different in magnitude — they are <strong>opposite in sign</strong>. Naive OLS says larger classes are associated with <em>higher</em> scores (+0.14). The IV estimate says larger classes <em>lower</em> scores (about −0.11). This is a textbook example of omitted-variable bias: once the variation in class size is tied to the enrollment rule rather than school sorting, the naive positive estimate reverses.</p>
 <p>For math, the story is similar in direction — the large positive naive coefficient (+0.22) shrinks dramatically — but the IV estimate stays mildly positive and small (+0.05), suggesting the effect of class size on math may be genuinely weaker or noisier for fourth graders.</p>
-<p>A few caveats about this replication are worth noting. The original paper uses Moulton (1986) corrected standard errors, which account for within-school clustering in a specific way; this replication uses the standard Liang–Zeger cluster-robust sandwich estimator, so standard errors may differ slightly even when point estimates match. Additionally, the paper’s preferred estimates in Table IV use formal two-stage least squares with richer controls; the informal Wald estimates shown here are illustrative. Despite these caveats, the main message of the paper comes through clearly: <strong>naive comparisons of class sizes are misleading</strong>, and the discontinuities created by Maimonides’ rule provide a credible way to recover a causal estimate of class size on student achievement.</p>
+<p>A few caveats about this replication are worth noting. The original paper uses Moulton (1986) corrected standard errors, which account for within-school clustering in a specific way; this replication uses the standard Liang-Zeger cluster-robust sandwich estimator, so standard errors may differ slightly even when point estimates match. In addition, the paper’s preferred estimates in Table IV use formal two-stage least squares with richer controls; the informal Wald estimates shown here are primarily interpretive. Despite these caveats, the main message of the paper comes through clearly: <strong>naive comparisons of class sizes are misleading</strong>, and the discontinuities created by Maimonides’ rule provide a credible strategy for causal inference.</p>
 <hr>
-<p><em>Data source: Angrist and Lavy (1999), “Using Maimonides’ Rule to Estimate the Effect of Class Size on Scholastic Achievement,” Quarterly Journal of Economics 114(2): 533–575. Data obtained from the authors’ replication files.</em></p>
+<p><em>Data source: Angrist and Lavy (1999), “Using Maimonides’ Rule to Estimate the Effect of Class Size on Scholastic Achievement,” Quarterly Journal of Economics 114(2): 533-575. Data obtained from the authors’ replication files.</em></p>
 
 
 </section>
