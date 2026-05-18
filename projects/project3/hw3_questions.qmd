@@ -4,6 +4,10 @@ subtitle: "A Case Study of Blueprinty's Software and Patent Awards"
 author: "David Nierman"
 description: "Fitting a Poisson regression model via maximum likelihood to estimate the effect of Blueprinty's software on patent awards."
 date: today
+format: html
+execute:
+  warning: false
+  message: false
 ---
 
 
@@ -19,8 +23,10 @@ The core difficulty is that Blueprinty's customers are not randomly assigned. Fi
 ## Exploring the Data
 
 ```{python}
+#| echo: false
 import pandas as pd
 import matplotlib.pyplot as plt
+from IPython.display import display, HTML
 
 df = pd.read_csv("blueprinty.csv")
 
@@ -42,6 +48,8 @@ axes[0].set_xlabel("Patents Awarded (Last 5 Years)")
 axes[0].set_ylabel("Number of Firms")
 axes[0].set_xlim(0, x_max)
 axes[0].legend()
+axes[0].spines["top"].set_visible(False)
+axes[0].spines["right"].set_visible(False)
 
 axes[1].hist(customers, bins=bins, color="darkorange", edgecolor="white")
 axes[1].axvline(mean_cust, color="red", linestyle="--", label=f"Mean: {mean_cust:.2f}")
@@ -49,6 +57,8 @@ axes[1].set_title("Blueprinty Customers")
 axes[1].set_xlabel("Patents Awarded (Last 5 Years)")
 axes[1].set_xlim(0, x_max)
 axes[1].legend()
+axes[1].spines["top"].set_visible(False)
+axes[1].spines["right"].set_visible(False)
 
 fig.suptitle("Distribution of Patents by Customer Status", fontsize=13)
 plt.tight_layout()
@@ -58,6 +68,7 @@ plt.show()
 Blueprinty customers average `{python} f"{mean_cust:.2f}"` patents over the last five years, compared to `{python} f"{mean_non:.2f}"` for non-customers — a meaningful gap on its face. Both distributions are right-skewed, with most firms clustered at low patent counts and a long tail of high-output firms. The customer distribution appears shifted rightward, suggesting customers tend to receive more patents. However, because customers are not randomly assigned, this difference may reflect underlying firm characteristics — such as age or region — rather than any effect of the software itself.
 
 ```{python}
+#| echo: false
 region_counts = df.groupby(["region", "iscustomer"]).size().unstack(fill_value=0)
 region_counts.columns = ["Non-Customer", "Customer"]
 region_pct = region_counts.div(region_counts.sum(axis=1), axis=0)
@@ -69,6 +80,8 @@ ax.set_xlabel("Region")
 ax.set_ylabel("Proportion")
 ax.set_xticklabels(region_pct.index, rotation=30, ha="right")
 ax.legend(title="Status")
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 plt.tight_layout()
 plt.show()
 ```
@@ -76,6 +89,7 @@ plt.show()
 The Northeast stands out sharply: customers make up a majority of firms in that region, while all other regions are dominated by non-customers. This regional concentration matters because if Northeast firms also tend to win more patents for reasons unrelated to Blueprinty — stronger engineering ecosystems, proximity to patent attorneys, etc. — then the raw customer advantage in patent counts could be partly a Northeast effect rather than a software effect.
 
 ```{python}
+#| echo: false
 cust_age = df[df["iscustomer"] == 1]["age"]
 non_cust_age = df[df["iscustomer"] == 0]["age"]
 
@@ -95,6 +109,8 @@ axes[1].axvline(cust_age.mean(), color="red", linestyle="--",
 axes[1].set_title("Blueprinty Customers")
 axes[1].set_xlabel("Firm Age (Years)")
 axes[1].legend()
+axes[1].spines["top"].set_visible(False)
+axes[1].spines["right"].set_visible(False)
 
 fig.suptitle("Distribution of Firm Age by Customer Status", fontsize=13)
 plt.tight_layout()
@@ -135,6 +151,7 @@ $$
 The last term is a constant with respect to $\lambda$ and plays no role in maximization. The MLE is found by differentiating and setting the derivative to zero, which yields $\hat{\lambda} = \bar{Y}$ — the sample mean.
 
 ```{python}
+#| echo: false
 import numpy as np
 from scipy.special import gammaln
 
@@ -154,6 +171,8 @@ ax.set_xlabel("λ")
 ax.set_ylabel("Log-Likelihood")
 ax.set_title("Poisson Log-Likelihood over λ")
 ax.legend()
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 plt.tight_layout()
 plt.show()
 ```
@@ -185,6 +204,7 @@ The MLE is simply the sample mean — a reassuring result, since $\lambda$ is th
 ### Numerical MLE
 
 ```{python}
+#| echo: false
 from scipy.optimize import minimize_scalar
 
 neg_loglik = lambda lam: -poisson_loglikelihood(lam, Y)
@@ -193,8 +213,12 @@ result = minimize_scalar(neg_loglik, bounds=(0.01, 20), method="bounded")
 numerical_mle = result.x
 sample_mean = Y.mean()
 
-print(f"Numerical MLE:  {numerical_mle:.4f}")
-print(f"Sample mean:    {sample_mean:.4f}")
+display(HTML(
+    pd.DataFrame({
+        "Method": ["Numerical MLE", "Sample mean"],
+        "Value": [f"{numerical_mle:.4f}", f"{sample_mean:.4f}"]
+    }).to_html(index=False, border=0, classes="table table-sm", justify="left")
+))
 ```
 
 The numerical optimizer arrives at essentially the same answer as the sample mean (`{python} f"{numerical_mle:.4f}"` vs. `{python} f"{sample_mean:.4f}"`), confirming the analytical result. This agreement is expected: both approaches are solving the same problem — one algebraically, one computationally — so they must converge to the same value.
@@ -213,6 +237,7 @@ Here $X_i$ is a vector of covariates for firm $i$ (age, region indicators, custo
 The log-likelihood function is updated to accept a covariate matrix $X$ and coefficient vector $\beta$, computing firm-specific rates via $\lambda_i = \exp(X_i'\beta)$:
 
 ```{python}
+#| echo: false
 def poisson_reg_loglik(beta, Y, X):
     eta = np.clip(X @ beta, -30, 30)
     return np.sum(-np.exp(eta) + Y * eta - gammaln(Y + 1))
@@ -221,6 +246,7 @@ def poisson_reg_loglik(beta, Y, X):
 The design matrix includes an intercept, firm age, age squared, region dummies (Midwest dropped as the reference category), and the customer indicator. Age squared is included because the relationship between firm age and patenting is unlikely to be linear — very young and very old firms may patent at different rates than a straight line would predict. One region must be omitted to avoid perfect collinearity: if we included all five region dummies, their sum would equal the intercept column, making $X$ rank-deficient and the coefficients non-identifiable.
 
 ```{python}
+#| echo: false
 from scipy.optimize import minimize
 from scipy.optimize._numdiff import approx_derivative
 from scipy.linalg import inv
@@ -253,16 +279,20 @@ H = approx_derivative(
 se = np.sqrt(np.diag(inv(H)))
 
 results_df = pd.DataFrame({
-    'Coefficient': beta_hat,
-    'Std. Error': se
-}, index=X.columns).round(5)
+    'Coefficient': beta_hat.round(5),
+    'Std. Error': se.round(5)
+}, index=X.columns)
 
-results_df
+display(HTML(
+    "<b>Poisson Regression MLE — Coefficients and Standard Errors</b><br>" +
+    results_df.to_html(border=0, classes="table table-sm", justify="left")
+))
 ```
 
 ### GLM Check
 
 ```{python}
+#| echo: false
 import statsmodels.api as sm
 
 glm_fit = sm.GLM(Y, X_mat, family=sm.families.Poisson()).fit()
@@ -274,7 +304,10 @@ glm_df = pd.DataFrame({
     'GLM SE': glm_fit.bse.round(5)
 }, index=X.columns)
 
-glm_df
+display(HTML(
+    "<b>Comparison: Manual MLE vs. statsmodels GLM</b><br>" +
+    glm_df.to_html(border=0, classes="table table-sm", justify="left")
+))
 ```
 
 The coefficient estimates from both approaches are identical. The standard errors also match closely here because the numerical Hessian is computed via a fine-grained finite-difference approximation; in general, slight discrepancies can arise because `sm.GLM` uses the analytic (expected) information matrix while numerical optimizers approximate it, but with well-behaved data and a tight grid the two converge.
@@ -291,18 +324,24 @@ The customer coefficient is 0.208 (SE ≈ 0.031), which is highly significant. E
 Because Poisson regression is multiplicative in $\lambda$, the customer coefficient (≈ 0.208) does not translate directly into "additional patents." To produce a more interpretable estimate we use the counterfactual prediction approach: take the observed covariate matrix and flip every firm's customer status to 0, then to 1, and compare predicted patent counts.
 
 ```{python}
+#| echo: false
 X0 = X_mat.copy()
 X1 = X_mat.copy()
-X0[:, -1] = 0  # set all firms to non-customer
-X1[:, -1] = 1  # set all firms to customer
+X0[:, -1] = 0
+X1[:, -1] = 1
 
 y0_hat = np.exp(X0 @ beta_hat)
 y1_hat = np.exp(X1 @ beta_hat)
 
 ate = (y1_hat - y0_hat).mean()
-print(f"Average predicted patents (non-customer): {y0_hat.mean():.3f}")
-print(f"Average predicted patents (customer):     {y1_hat.mean():.3f}")
-print(f"Average treatment effect:                 {ate:.3f}")
+
+display(HTML(
+    "<b>Counterfactual Prediction Results</b><br>" +
+    pd.DataFrame({
+        "Scenario": ["All firms as non-customers", "All firms as customers", "Average treatment effect"],
+        "Avg. Predicted Patents": [f"{y0_hat.mean():.3f}", f"{y1_hat.mean():.3f}", f"{ate:.3f}"]
+    }).to_html(index=False, border=0, classes="table table-sm", justify="left")
+))
 ```
 
 Holding each firm's age and region fixed at its observed values, switching customer status from 0 to 1 increases predicted patents by an average of `{python} f"{ate:.2f}"` over five years — roughly **0.79 additional patents per firm**. Put differently, the model estimates that Blueprinty's software is associated with about one extra patent every six years for a typical firm in this sample.
