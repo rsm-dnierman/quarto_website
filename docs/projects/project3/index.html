@@ -197,31 +197,31 @@ window.Quarto = {
 </section>
 <section id="exploring-the-data" class="level2">
 <h2 class="anchored" data-anchor-id="exploring-the-data">Exploring the Data</h2>
-<div id="5246adf4" class="cell" data-execution_count="1">
+<div id="aa50051e" class="cell" data-execution_count="1">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="hw3_questions_files/figure-html/cell-2-output-1.png" width="950" height="381" class="figure-img"></p>
+<p><img src="index_files/figure-html/cell-2-output-1.png" width="950" height="381" class="figure-img"></p>
 </figure>
 </div>
 </div>
 </div>
 <p>Blueprinty customers average 4.13 patents over the last five years, compared to 3.47 for non-customers — a meaningful gap on its face. Both distributions are right-skewed, with most firms clustered at low patent counts and a long tail of high-output firms. The customer distribution appears shifted rightward, suggesting customers tend to receive more patents. However, because customers are not randomly assigned, this difference may reflect underlying firm characteristics — such as age or region — rather than any effect of the software itself.</p>
-<div id="99095bae" class="cell" data-execution_count="2">
+<div id="607a4780" class="cell" data-execution_count="2">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="hw3_questions_files/figure-html/cell-3-output-1.png" width="758" height="374" class="figure-img"></p>
+<p><img src="index_files/figure-html/cell-3-output-1.png" width="758" height="374" class="figure-img"></p>
 </figure>
 </div>
 </div>
 </div>
 <p>The Northeast stands out sharply: customers make up a majority of firms in that region, while all other regions are dominated by non-customers. This regional concentration matters because if Northeast firms also tend to win more patents for reasons unrelated to Blueprinty — stronger engineering ecosystems, proximity to patent attorneys, etc. — then the raw customer advantage in patent counts could be partly a Northeast effect rather than a software effect.</p>
-<div id="fba1126c" class="cell" data-execution_count="3">
+<div id="7a780aa8" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="hw3_questions_files/figure-html/cell-4-output-1.png" width="949" height="381" class="figure-img"></p>
+<p><img src="index_files/figure-html/cell-4-output-1.png" width="949" height="381" class="figure-img"></p>
 </figure>
 </div>
 </div>
@@ -248,11 +248,11 @@ L(\lambda \mid \mathbf{Y}) = \prod_{i=1}^{n} \frac{e^{-\lambda}\lambda^{Y_i}}{Y_
 \ell(\lambda \mid \mathbf{Y}) = -n\lambda + \log(\lambda)\sum_{i=1}^{n} Y_i - \sum_{i=1}^{n} \log(Y_i!)
 \]</span></p>
 <p>The last term is a constant with respect to <span class="math inline">\(\lambda\)</span> and plays no role in maximization. The MLE is found by differentiating and setting the derivative to zero, which yields <span class="math inline">\(\hat{\lambda} = \bar{Y}\)</span> — the sample mean.</p>
-<div id="292ef243" class="cell" data-execution_count="4">
+<div id="646262aa" class="cell" data-execution_count="4">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="hw3_questions_files/figure-html/cell-5-output-1.png" width="758" height="374" class="figure-img"></p>
+<p><img src="index_files/figure-html/cell-5-output-1.png" width="758" height="374" class="figure-img"></p>
 </figure>
 </div>
 </div>
@@ -276,7 +276,7 @@ L(\lambda \mid \mathbf{Y}) = \prod_{i=1}^{n} \frac{e^{-\lambda}\lambda^{Y_i}}{Y_
 </section>
 <section id="numerical-mle" class="level3">
 <h3 class="anchored" data-anchor-id="numerical-mle">Numerical MLE</h3>
-<div id="5a395f93" class="cell" data-execution_count="5">
+<div id="b5460df3" class="cell" data-execution_count="5">
 <div class="cell-output cell-output-display">
 <table class="dataframe table table-sm caption-top table-striped small">
 <thead>
@@ -310,7 +310,7 @@ Y_i \sim \text{Poisson}(\lambda_i) \qquad \text{where} \qquad \lambda_i = \exp(X
 <p>Here <span class="math inline">\(X_i\)</span> is a vector of covariates for firm <span class="math inline">\(i\)</span> (age, region indicators, customer status) and <span class="math inline">\(\beta\)</span> is a vector of coefficients to be estimated. The exponential function serves as the link between the linear predictor <span class="math inline">\(X_i'\beta\)</span> — which can take any real value — and the rate parameter <span class="math inline">\(\lambda_i\)</span>, which must be strictly positive. By exponentiating, we guarantee <span class="math inline">\(\lambda_i &gt; 0\)</span> for any value of <span class="math inline">\(\beta\)</span>, making the model well-defined for count outcomes.</p>
 <p>The log-likelihood function is updated to accept a covariate matrix <span class="math inline">\(X\)</span> and coefficient vector <span class="math inline">\(\beta\)</span>, computing firm-specific rates via <span class="math inline">\(\lambda_i = \exp(X_i'\beta)\)</span>:</p>
 <p>The design matrix includes an intercept, firm age, age squared, region dummies (Midwest dropped as the reference category), and the customer indicator. Age squared is included because the relationship between firm age and patenting is unlikely to be linear — very young and very old firms may patent at different rates than a straight line would predict. One region must be omitted to avoid perfect collinearity: if we included all five region dummies, their sum would equal the intercept column, making <span class="math inline">\(X\)</span> rank-deficient and the coefficients non-identifiable.</p>
-<div id="29dcf604" class="cell" data-execution_count="7">
+<div id="3cd7acea" class="cell" data-execution_count="7">
 <div class="cell-output cell-output-display">
 <b>Poisson Regression MLE — Coefficients and Standard Errors</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -368,7 +368,7 @@ Y_i \sim \text{Poisson}(\lambda_i) \qquad \text{where} \qquad \lambda_i = \exp(X
 </div>
 <section id="glm-check" class="level3">
 <h3 class="anchored" data-anchor-id="glm-check">GLM Check</h3>
-<div id="0d86a4aa" class="cell" data-execution_count="8">
+<div id="dc3b6f26" class="cell" data-execution_count="8">
 <div class="cell-output cell-output-display">
 <b>Comparison: Manual MLE vs. statsmodels GLM</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -453,7 +453,7 @@ Y_i \sim \text{Poisson}(\lambda_i) \qquad \text{where} \qquad \lambda_i = \exp(X
 <section id="the-effect-of-blueprintys-software" class="level2">
 <h2 class="anchored" data-anchor-id="the-effect-of-blueprintys-software">The Effect of Blueprinty’s Software</h2>
 <p>Because Poisson regression is multiplicative in <span class="math inline">\(\lambda\)</span>, the customer coefficient (≈ 0.208) does not translate directly into “additional patents.” To produce a more interpretable estimate we use the counterfactual prediction approach: take the observed covariate matrix and flip every firm’s customer status to 0, then to 1, and compare predicted patent counts.</p>
-<div id="6fcfca02" class="cell" data-execution_count="9">
+<div id="217fd81a" class="cell" data-execution_count="9">
 <div class="cell-output cell-output-display">
 <b>Counterfactual Prediction Results</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
