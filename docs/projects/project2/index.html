@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="David Nierman">
-<meta name="dcterms.date" content="2026-04-28">
+<meta name="dcterms.date" content="2026-05-18">
 
 <title>Replication of Angrist and Lavy (1999) – David Nierman</title>
 <style>
@@ -42,7 +42,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-ac077c1e730dfeb5e42400639d17284e.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-432d85a1d114e979fd7af68d5be528e6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-6b71721d8aceb696804222920b4299b1.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -171,7 +171,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">April 28, 2026</p>
+      <p class="date">May 18, 2026</p>
     </div>
   </div>
   
@@ -216,7 +216,7 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 <section id="naive-ols-table-ii-columns-7-and-10" class="level3">
 <h3 class="anchored" data-anchor-id="naive-ols-table-ii-columns-7-and-10">Naive OLS: Table II (Columns 7 and 10)</h3>
 <p>Before exploiting the rule, Angrist and Lavy document what a naive regression produces. These regressions simply regress average test scores on actual class size, with no controls and no attempt to address endogeneity. The results are shown below.</p>
-<div id="544cfa1f" class="cell" data-execution_count="3">
+<div id="2905a763" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display">
 <b>Table II (4th grade): Naive OLS — Actual Class Size on Test Scores</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -258,7 +258,7 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 <section id="reduced-form-rdd-table-iii-panel-a-columns-7-9-11" class="level3">
 <h3 class="anchored" data-anchor-id="reduced-form-rdd-table-iii-panel-a-columns-7-9-11">Reduced-Form RDD: Table III Panel A (Columns 7, 9, 11)</h3>
 <p>The paper’s preferred design uses <code>fsc</code> — the class size predicted by Maimonides’ rule — to isolate variation in class size that is plausibly exogenous near enrollment cutoffs. The estimates below are <strong>reduced-form/first-stage style regressions</strong> in the same spirit as Table III Panel A: they show how this rule-based variation maps into realized class size and outcomes, controlling for <code>tipuach</code> (the fraction of disadvantaged students) to absorb smooth socioeconomic differences across schools.</p>
-<div id="f68f7daa" class="cell" data-execution_count="4">
+<div id="97e3f05e" class="cell" data-execution_count="4">
 <div class="cell-output cell-output-display">
 <b>Table III Panel A (4th grade): Reduced-Form RDD — fsc on Class Size and Scores</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -310,7 +310,7 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 <section id="how-close-is-the-replication-to-the-published-numbers" class="level3">
 <h3 class="anchored" data-anchor-id="how-close-is-the-replication-to-the-published-numbers">How Close Is the Replication to the Published Numbers?</h3>
 <p>To make the replication quality explicit, the next table compares each key coefficient to the benchmark reported in Angrist and Lavy (1999), then reports the absolute difference.</p>
-<div id="5e72d028" class="cell" data-execution_count="5">
+<div id="c3fea6d1" class="cell" data-execution_count="5">
 <div class="cell-output cell-output-display">
 <b>Replication Accuracy Check Against Published Coefficients</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
@@ -362,7 +362,7 @@ Figure&nbsp;1: Replication of Figure 1 Panel B (Angrist and Lavy 1999). Circles 
 </section>
 <section id="comparing-naive-ols-vs.-reduced-form-rdd" class="level3">
 <h3 class="anchored" data-anchor-id="comparing-naive-ols-vs.-reduced-form-rdd">Comparing Naive OLS vs.&nbsp;Reduced-Form RDD</h3>
-<div id="64f350fd" class="cell" data-execution_count="6">
+<div id="de479514" class="cell" data-execution_count="6">
 <div class="cell-output cell-output-display">
 <b>Summary: Naive OLS vs. RDD-Based Estimates</b><br>
 <table class="dataframe table table-sm caption-top table-striped small">
